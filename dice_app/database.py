@@ -18,7 +18,7 @@ DB_PATH = Path(st.secrets.get("DB_PATH", "data/dice_app.db"))
 def get_connection() -> sqlite3.Connection:
     """데이터베이스 연결을 캐시하여 반환합니다."""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
+    conn = sqlite3.connect(str(DB_PATH), check_same_thread=False, timeout=30)
     conn.row_factory = sqlite3.Row  # 딕셔너리 형태로 결과 반환
     return conn
 
@@ -42,11 +42,17 @@ def execute_query(query: str, params: tuple = (), fetch: bool | str = False) -> 
         else:
             conn.commit()
             return None
+    except sqlite3.OperationalError as e:
+        conn.rollback()
+        st.error(f"데이터베이스 오류: {e}")
+        st.error(f"쿼리: {query[:100]}...")
+        raise e
     except Exception as e:
         conn.rollback()
         raise e
     finally:
-        cursor.close()
+        # 커서를 닫지 않음 (연결이 캐시되므로)
+        pass
 
 
 def init_database():

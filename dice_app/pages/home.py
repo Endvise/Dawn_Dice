@@ -14,15 +14,17 @@ from typing import Optional, Dict, Any
 def get_reservation_status() -> Dict[str, Any]:
     """예약 상태를 반환합니다."""
     # 기존 참여자 수
-    participants_count = execute_query(
+    result = execute_query(
         "SELECT COUNT(*) as count FROM participants WHERE completed = 1", fetch="one"
-    ).get("count", 0)
+    )
+    participants_count = result["count"] if result else 0
 
     # 승인된 예약자 수
-    approved_count = execute_query(
+    result = execute_query(
         "SELECT COUNT(*) as count FROM reservations WHERE status = 'approved'",
         fetch="one",
-    ).get("count", 0)
+    )
+    approved_count = result["count"] if result else 0
 
     # 전체 참여자 수
     total_count = participants_count + approved_count
@@ -37,20 +39,28 @@ def get_reservation_status() -> Dict[str, Any]:
         max_participants = active_session.get("max_participants", db.MAX_PARTICIPANTS)
 
         # 회차별 승인된 예약 수
-        session_approved_count = execute_query(
+        result = execute_query(
             "SELECT COUNT(*) as count FROM reservations WHERE event_name = ? AND status = 'approved'",
             (session_name,),
             fetch="one",
-        ).get("count", 0)
+        )
+        session_approved_count = result["count"] if result else 0
 
         # 총 참여자 수 (기존 + 회차별 승인)
-        session_total_count = execute_query(
+        result = execute_query(
             "SELECT COUNT(*) as count FROM participants WHERE event_name = ? AND completed = 1",
             (session_name,),
             fetch="one",
-        ).get("count", 0)
+        )
+        session_total_count = result["count"] if result else 0
 
         session_count = session_total_count + session_approved_count
+
+        result_waitlist = execute_query(
+            "SELECT COUNT(*) as count FROM reservations WHERE status = 'waitlisted'",
+            fetch="one",
+        )
+        waitlist_count = result_waitlist["count"] if result_waitlist else 0
 
         return {
             "total": session_count,
@@ -64,12 +74,15 @@ def get_reservation_status() -> Dict[str, Any]:
             "overall_total": total_count,
             "overall_max": db.MAX_PARTICIPANTS,
             "overall_is_full": total_count >= db.MAX_PARTICIPANTS,
-            "overall_waitlist": execute_query(
-                "SELECT COUNT(*) as count FROM reservations WHERE status = 'waitlisted'",
-                fetch="one",
-            ).get("count", 0),
+            "overall_waitlist": waitlist_count,
         }
     else:
+        result_waitlist = execute_query(
+            "SELECT COUNT(*) as count FROM reservations WHERE status = 'waitlisted'",
+            fetch="one",
+        )
+        waitlist_count = result_waitlist["count"] if result_waitlist else 0
+
         return {
             "total": total_count,
             "max": db.MAX_PARTICIPANTS,
@@ -81,10 +94,7 @@ def get_reservation_status() -> Dict[str, Any]:
             "overall_total": total_count,
             "overall_max": db.MAX_PARTICIPANTS,
             "overall_is_full": total_count >= db.MAX_PARTICIPANTS,
-            "overall_waitlist": execute_query(
-                "SELECT COUNT(*) as count FROM reservations WHERE status = 'waitlisted'",
-                fetch="one",
-            ).get("count", 0),
+            "overall_waitlist": waitlist_count,
         }
 
 

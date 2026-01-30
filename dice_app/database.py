@@ -655,15 +655,15 @@ def list_announcements(
     is_active: bool = True, category: Optional[str] = None, limit: Optional[int] = None
 ) -> List[Dict[str, Any]]:
     """공지사항 목록을 조회합니다."""
-    conditions = ["is_active = ?"]
+    conditions = ["a.is_active = ?"]
     params: List[Any] = [1 if is_active else 0]
 
     if category:
-        conditions.append("category = ?")
+        conditions.append("a.category = ?")
         params.append(category)
 
     where_clause = " WHERE " + " AND ".join(conditions)
-    order_clause = " ORDER BY is_pinned DESC, created_at DESC"
+    order_clause = " ORDER BY a.is_pinned DESC, a.created_at DESC"
 
     query = f"""
         SELECT a.*, u.nickname as author_name
@@ -843,13 +843,19 @@ def init_app():
         except:
             pass  # 이미 존음
 
-    # 마이그레이션: waitlist_order, waitlist_order 컬럼 추가
+    # 마이그레이션: waitlist_order, waitlist_position 컬럼 추가
+    # 컬럼 존재 여부 확인 후 추가
     try:
-        execute_query("ALTER TABLE reservations ADD COLUMN waitlist_order INTEGER")
-    except:
-        pass  # 이미 존재
+        # reservations 테이블 구조 확인
+        result = execute_query("PRAGMA table_info(reservations)", fetch="all")
+        existing_columns = [col["name"] for col in result]
 
-    try:
-        execute_query("ALTER TABLE reservations ADD COLUMN waitlist_position INTEGER")
-    except:
-        pass  # 이미 존음
+        if "waitlist_order" not in existing_columns:
+            execute_query("ALTER TABLE reservations ADD COLUMN waitlist_order INTEGER")
+
+        if "waitlist_position" not in existing_columns:
+            execute_query(
+                "ALTER TABLE reservations ADD COLUMN waitlist_position INTEGER"
+            )
+    except Exception as e:
+        st.warning(f"마이그레이션 중 오류 발생: {e}")

@@ -118,10 +118,16 @@ def main():
                 views.master_admin.show()
 
     else:
-        # 로그인 전 - 홈페이지
-        import views.home
+        # 로그인 전 처리
+        if st.session_state.get("show_register"):
+            import views.register
 
-        views.home.show()
+            views.register.show()
+        else:
+            # 홈페이지
+            import views.home
+
+            views.home.show()
 
 
 if __name__ == "__main__":

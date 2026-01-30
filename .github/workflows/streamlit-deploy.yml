@@ -1,0 +1,19 @@
+name: Streamlit Cloud Deploy
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Streamlit Cloud
+        uses: streamlit/streamlit-app-action@v1
+        with:
+          repo-name: ${{ github.repository }}
+          repo-owner: ${{ github.repository_owner }}
+          app-name: dawndice
+          branch: master
+          main-file-path: dice_app/app.py

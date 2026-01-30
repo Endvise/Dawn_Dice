@@ -325,6 +325,47 @@ def show():
         st.markdown("DaWn Dice Party에 오신 것을 환영합니다!")
         st.markdown("---")
 
+        # 로그인 버튼 영역
+        col1, col2, col3 = st.columns([1, 2, 1])
+
+        with col2:
+            st.markdown("### 📝 로그인")
+
+            # 로그인 폼
+            with st.form("login_form"):
+                login_method = st.radio(
+                    "로그인 방식", ["사령관번호 로그인", "마스터 계정"], horizontal=True
+                )
+
+                username = st.text_input(
+                    "사령관번호 또는 ID", key="home_login_username"
+                )
+                password = st.text_input(
+                    "비밀번호", type="password", key="home_login_password"
+                )
+
+                submitted = st.form_submit_button(
+                    "로그인", use_container_width=True, type="primary"
+                )
+
+                if submitted:
+                    success, message = auth.login(username, password)
+
+                    if success:
+                        st.success(message)
+                        st.rerun()
+                    else:
+                        st.error(message)
+
+            st.markdown("---")
+            st.markdown("### 계정이 없으신가요?")
+
+            if st.button("회원가입", use_container_width=True):
+                st.session_state["show_register"] = True
+                st.rerun()
+
+        st.markdown("---")
+
         # 주요 안내
         st.markdown("### 📋 주요 안내")
 

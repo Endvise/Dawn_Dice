@@ -75,53 +75,53 @@ def main():
     if auth.is_authenticated():
         # 일반 사용자 페이지
         if page == "🏠 홈":
-            import pages.home
+            import views.home
 
-            pages.home.show()
+            views.home.show()
         elif page == "📝 예약 신청":
-            import pages.reservation
+            import views.reservation
 
-            pages.reservation.show()
+            views.reservation.show()
         elif page == "📊 내 예약 현황":
-            import pages.my_reservations
+            import views.my_reservations
 
-            pages.my_reservations.show()
+            views.my_reservations.show()
 
         # 관리자 페이지
         if auth.is_admin():
             if admin_page == "📊 대시보드":
-                import pages.admin_dashboard
+                import views.admin_dashboard
 
-                pages.admin_dashboard.show()
+                views.admin_dashboard.show()
             elif admin_page == "📋 예약 관리":
-                import pages.admin_reservations
+                import views.admin_reservations
 
-                pages.admin_reservations.show()
+                views.admin_reservations.show()
             elif admin_page == "👥 참여자 관리":
-                import pages.admin_participants
+                import views.admin_participants
 
-                pages.admin_participants.show()
+                views.admin_participants.show()
             elif admin_page == "🚫 블랙리스트 관리":
-                import pages.admin_blacklist
+                import views.admin_blacklist
 
-                pages.admin_blacklist.show()
+                views.admin_blacklist.show()
             elif admin_page == "📢 공지사항 관리":
-                import pages.admin_announcements
+                import views.admin_announcements
 
-                pages.admin_announcements.show()
+                views.admin_announcements.show()
 
         # 마스터 페이지
         if auth.is_master():
             if st.session_state.get("page") == "admin_management":
-                import pages.master_admin
+                import views.master_admin
 
-                pages.master_admin.show()
+                views.master_admin.show()
 
     else:
         # 로그인 전 - 홈페이지
-        import pages.home
+        import views.home
 
-        pages.home.show()
+        views.home.show()
 
 
 if __name__ == "__main__":

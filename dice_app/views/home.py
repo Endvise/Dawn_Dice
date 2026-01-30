@@ -334,15 +334,21 @@ def show():
             # 로그인 폼
             with st.form("login_form"):
                 username = st.text_input(
-                    "사령관번호 (10자리)", key="home_login_username", max_chars=10
+                    "사령관번호 또는 ID", key="home_login_username"
                 )
                 password = st.text_input(
                     "비밀번호", type="password", key="home_login_password"
                 )
 
-                submitted = st.form_submit_button(
-                    "로그인", use_container_width=True, type="primary"
-                )
+                col_login1, col_login2 = st.columns([1, 1])
+                with col_login1:
+                    submitted = st.form_submit_button(
+                        "로그인", use_container_width=True, type="primary"
+                    )
+                with col_login2:
+                    if st.button("회원가입", use_container_width=True):
+                        st.session_state["show_register"] = True
+                        st.rerun()
 
                 if submitted:
                     success, message = auth.login(username, password)
@@ -352,13 +358,6 @@ def show():
                         st.rerun()
                     else:
                         st.error(message)
-
-            st.markdown("---")
-            st.markdown("### 계정이 없으신가요?")
-
-            if st.button("회원가입", use_container_width=True):
-                st.session_state["show_register"] = True
-                st.rerun()
 
         st.markdown("---")
 
@@ -370,10 +369,7 @@ def show():
         - **최대 참여자**: 회차별 180명
         - **대기자 시스템**: 정원 초과 시 대기자 명단 자동 등록
         - **사령관번호**: 10자리 숫자로 가입 가능
-
         - **비밀번호**: 최소 8자 이상
-        - **블랙리스트**: 블랙리스트에 등록된 사령관번호는 예약 불가
-        - **Google Sheets**: 외부 블랙리스트와 통합
 
         ## 회차별 시스템
 

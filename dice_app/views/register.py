@@ -95,15 +95,10 @@ def show():
             else:
                 st.error(f"✗ {error_msg}")
 
-        # 서버 선택
-        servers = db.list_servers()
-        server_options = [s["server_name"] for s in servers]
-
-        if server_options:
-            server = st.selectbox("서버", server_options, key="reg_server")
-        else:
-            st.warning("등록된 서버가 없습니다.")
-            server = None
+        # 서버 입력
+        server = st.text_input(
+            "서버", key="reg_server", placeholder="서버명을 입력하세요"
+        )
 
         # 연맹 (선택사항)
         alliance = st.text_input(

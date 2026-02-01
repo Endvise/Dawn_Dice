@@ -340,15 +340,9 @@ def show():
                     "비밀번호", type="password", key="home_login_password"
                 )
 
-                col_login1, col_login2 = st.columns([1, 1])
-                with col_login1:
-                    submitted = st.form_submit_button(
-                        "로그인", use_container_width=True, type="primary"
-                    )
-                with col_login2:
-                    if st.button("회원가입", use_container_width=True):
-                        st.session_state["show_register"] = True
-                        st.rerun()
+                submitted = st.form_submit_button(
+                    "로그인", use_container_width=True, type="primary"
+                )
 
                 if submitted:
                     success, message = auth.login(username, password)
@@ -358,6 +352,11 @@ def show():
                         st.rerun()
                     else:
                         st.error(message)
+
+            # 회원가입 버튼 (폼 외부)
+            if st.button("회원가입", use_container_width=True):
+                st.session_state["show_register"] = True
+                st.rerun()
 
         st.markdown("---")
 

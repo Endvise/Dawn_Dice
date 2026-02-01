@@ -38,9 +38,11 @@ def main():
         if auth.is_authenticated():
             st.markdown("### 📋 메뉴")
 
+            # 일반 사용자/관리자/마스터 공통 메뉴
             page = st.radio("페이지 선택", ["🏠 홈", "📝 예약 신청", "📊 내 예약 현황"])
 
-            # 관리자 메뉴
+            # 관리자/마스터 메뉴 (관리자 페이지 변수 초기화)
+            admin_page = None
             if auth.is_admin():
                 st.markdown("---")
                 st.markdown("### 🔧 관리자 메뉴")
@@ -57,7 +59,7 @@ def main():
                     ],
                 )
 
-            # 마스터 메뉴
+            # 마스터 전용 메뉴
             if auth.is_master():
                 st.markdown("---")
                 st.markdown("### 👑 마스터 메뉴")
@@ -73,7 +75,7 @@ def main():
 
     # 메인 컨텐츠 영역
     if auth.is_authenticated():
-        # 일반 사용자 페이지
+        # 일반 사용자/관리자/마스터 공통 페이지
         if page == "🏠 홈":
             import views.home
 
@@ -87,12 +89,16 @@ def main():
 
             views.my_reservations.show()
 
-        # 관리자 페이지
+        # 관리자/마스터 전용 페이지
         if auth.is_admin():
             if admin_page == "📊 대시보드":
                 import views.admin_dashboard
 
                 views.admin_dashboard.show()
+            elif admin_page == "🎲 회차 관리":
+                import views.event_sessions
+
+                views.event_sessions.show()
             elif admin_page == "📋 예약 관리":
                 import views.admin_reservations
 
@@ -110,7 +116,7 @@ def main():
 
                 views.admin_announcements.show()
 
-        # 마스터 페이지
+        # 마스터 전용 페이지
         if auth.is_master():
             if st.session_state.get("page") == "admin_management":
                 import views.master_admin

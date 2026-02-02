@@ -86,7 +86,7 @@ def get_reservation_trend(days: int = 7) -> list:
             fetch="one",
         )
 
-        count = result.get("count", 0)
+        count = result["count"] if result and "count" in result else 0
         trend.append({"date": date_str, "count": count})
 
     return trend
@@ -296,7 +296,7 @@ def show():
             event_stats = {}
 
             for p in participants_list:
-                event_name = p.get("event_name", "Unknown")
+                event_name = p["event_name"] if p and "event_name" in p else "Unknown"
 
                 if event_name not in event_stats:
                     event_stats[event_name] = {
@@ -307,10 +307,10 @@ def show():
 
                 event_stats[event_name]["total"] += 1
 
-                if p.get("completed"):
+                if p["completed"] if p and "completed" in p else False:
                     event_stats[event_name]["completed"] += 1
 
-                if p.get("confirmed"):
+                if p["confirmed"] if p and "confirmed" in p else False:
                     event_stats[event_name]["confirmed"] += 1
 
             # 표시
@@ -339,12 +339,12 @@ def show():
         if blacklist_list:
             for bl in blacklist_list:
                 with st.expander(
-                    f"🚫 {bl['commander_id']} - {bl.get('nickname', 'Unknown')}"
+                    f"🚫 {bl['commander_id']} - {bl['nickname'] if bl and 'nickname' in bl else 'Unknown'}"
                 ):
                     st.markdown(f"""
                     **사령관번호**: {bl["commander_id"]}
-                    **닉네임**: {bl.get("nickname", "Unknown")}
-                    **사유**: {bl.get("reason", "N/A")}
+                    **닉네임**: {bl["nickname"] if bl and "nickname" in bl else "Unknown"}
+                    **사유**: {bl["reason"] if bl and "reason" in bl else "N/A"}
                     **추가일시**: {bl["added_at"]}
                     """)
 
@@ -372,17 +372,23 @@ def show():
             category_badge = {"공지": "📢", "안내": "ℹ️", "이벤트": "🎉"}
 
             for ann in announcements_list:
-                badge = category_badge.get(ann.get("category", "공지"), "📢")
-                pin_indicator = " 📌" if ann.get("is_pinned") else ""
+                badge = (
+                    category_badge[ann["category"]]
+                    if ann and "category" in ann and ann["category"] in category_badge
+                    else "📢"
+                )
+                pin_indicator = (
+                    " 📌" if ann and "is_pinned" in ann and ann["is_pinned"] else ""
+                )
 
                 with st.expander(f"{badge} {ann['title']}{pin_indicator}"):
                     st.markdown(ann["content"])
 
                     st.markdown(f"""
-                    **카테고리**: {ann.get("category", "공지")}
-                    **작성자**: {ann.get("author_name", "Unknown")}
-                    **작성일시**: {ann["created_at"][:19] if ann.get("created_at") else "N/A"}
-                    **수정일시**: {ann.get("updated_at", "N/A") if ann.get("updated_at") else "없음"}
+                    **카테고리**: {ann["category"] if ann and "category" in ann else "공지"}
+                    **작성자**: {ann["author_name"] if ann and "author_name" in ann else "Unknown"}
+                    **작성일시**: {ann["created_at"][:19] if ann and "created_at" in ann and ann["created_at"] else "N/A"}
+                    **수정일시**: {ann["updated_at"] if ann and "updated_at" in ann and ann["updated_at"] else "없음"}
                     """)
 
         else:

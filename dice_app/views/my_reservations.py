@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-내 예약 현황 페이지
+My Reservations page
 """
 
 import streamlit as st
@@ -9,68 +9,78 @@ import auth
 
 
 def show():
-    """내 예약 현황 페이지 표시"""
-    # 로그인 확인
+    """Show my reservations page"""
     auth.require_login()
 
     user = auth.get_current_user()
 
-    st.title("📊 내 예약 현황")
+    st.title("My Reservations")
     st.markdown("---")
 
-    # 통계
+    # Statistics
     my_reservations = db.list_reservations(user_id=user["id"])
 
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.metric("전체 예약", len(my_reservations))
+        st.metric("Total", len(my_reservations))
 
     with col2:
         pending = len([r for r in my_reservations if r["status"] == "pending"])
-        st.metric("대기중", pending)
+        st.metric("Pending", pending)
 
     with col3:
         approved = len([r for r in my_reservations if r["status"] == "approved"])
-        st.metric("승인됨", approved)
+        st.metric("Approved", approved)
 
     with col4:
         rejected = len([r for r in my_reservations if r["status"] == "rejected"])
-        st.metric("거절됨", rejected)
+        st.metric("Rejected", rejected)
 
     st.markdown("---")
 
-    # 필터
-    st.markdown("### 🔍 필터")
+    # Filter
+    st.markdown("### Filter")
 
     col1, col2 = st.columns(2)
 
     with col1:
         status_filter = st.selectbox(
-            "상태 필터", ["전체", "대기중", "승인됨", "거절됨", "취소됨"]
+            "Status Filter",
+            ["All", "Pending", "Approved", "Rejected", "Cancelled"],
+            key="status_filter",
         )
 
     with col2:
         blacklist_filter = st.selectbox(
-            "블랙리스트 필터", ["전체", "블랙리스트", "정상"]
+            "Blacklist Filter", ["All", "Blacklisted", "Normal"], key="blacklist_filter"
         )
 
     st.markdown("---")
 
-    # 예약 목록
+    # Reservation list
     filtered_reservations = []
 
     for res in my_reservations:
-        # 대기자 순번 표시
+        # Waitlist info
         waitlist_info = ""
         if res.get("status") == "waitlisted":
             waitlist_order = res.get("waitlist_order")
             waitlist_position = res.get("waitlist_position")
             waitlist_info = (
-                f" (대기자: {waitlist_order}번 / 현재 순번: {waitlist_position}번)"
+                f" (Waitlist: #{waitlist_order} / Current: #{waitlist_position})"
             )
 
-        # 예약 카드
+        status_color = {
+            "pending": "🟡 PENDING",
+            "approved": "🟢 APPROVED",
+            "rejected": "🔴 REJECTED",
+            "cancelled": "⚪ CANCELLED",
+            "waitlisted": "🔵 WAITLISTED",
+        }
+        status_label = status_color.get(res["status"], res["status"].upper())
+
+        # Reservation card
         with st.expander(
             f"{status_label}{waitlist_info} - {res['created_at'][:19]} (ID: {res['id']})"
         ):
@@ -78,64 +88,62 @@ def show():
 
             with col1:
                 st.markdown(f"""
-                **닉네임**: {res["nickname"]}
-                **사령관번호**: {res["commander_id"]}
-                **서버**: {res["server"]}
-                **연맹**: {res["alliance"] if res["alliance"] else "없음"}
-                **신청일시**: {res["created_at"]}
-                **상태**: {res["status"]}
+                **Nickname**: {res["nickname"]}
+                **Commander ID**: {res["commander_id"]}
+                **Server**: {res["server"]}
+                **Alliance**: {res["alliance"] if res["alliance"] else "None"}
+                **Applied At**: {res["created_at"]}
+                **Status**: {res["status"]}
                 """)
 
                 if res.get("approved_at"):
-                    st.markdown(f"**승인일시**: {res['approved_at']}")
+                    st.markdown(f"**Approved At**: {res['approved_at']}")
 
                 if res.get("waitlist_order"):
-                    st.info(f"🔵 대기자 순번: {res.get('waitlist_order')}번")
+                    st.info(f"🔵 Waitlist Number: {res.get('waitlist_order')}")
 
                 if res.get("notes"):
-                    st.text(f"**비고**: {res['notes']}")
+                    st.text(f"**Notes**: {res['notes']}")
 
                 if res.get("is_blacklisted"):
-                    st.warning(
-                        f"⚠️ **블랙리스트**: {res.get('blacklist_reason', 'N/A')}"
-                    )
+                    st.warning(f"⚠️ **Blacklist**: {res.get('blacklist_reason', 'N/A')}")
 
             with col2:
-                # 취소 버튼 (대기중일 때만)
+                # Cancel button (only when pending)
                 if res["status"] == "pending":
                     if st.button(
-                        "취소하기",
+                        "Cancel",
                         key=f"cancel_{res['id']}",
                         use_container_width=True,
                     ):
                         try:
                             db.cancel_reservation(res["id"])
-                            st.success("✓ 예약이 취소되었습니다.")
+                            st.success("Reservation cancelled.")
                             st.rerun()
                         except Exception as e:
-                            st.error(f"취소 중 오류가 발생했습니다: {e}")
+                            st.error(f"Error cancelling: {e}")
 
-                # 승인자 정보
+                # Approver info
                 if res.get("approved_by"):
                     approver = db.get_user_by_id(res["approved_by"])
                     if approver:
                         st.info(
-                            f"승인자: {approver.get('nickname', approver.get('username', 'Unknown'))}"
+                            f"Approved by: {approver.get('nickname', approver.get('username', 'Unknown'))}"
                         )
 
     else:
-        st.info("표시할 예약이 없습니다.")
+        st.info("No reservations to display.")
 
     st.markdown("---")
 
-    # 안내 메시지
+    # Guide message
     st.markdown("""
-    ### 💡 안내
+    ### Guide
 
-    - **대기중**: 관리자가 승인 대기 중
-    - **승인됨**: 예약이 승인됨
-    - **거절됨**: 관리자가 거절함
-    - **취소됨**: 사용자가 직접 취소함
+    - **Pending**: Waiting for admin approval
+    - **Approved**: Reservation approved
+    - **Rejected**: Rejected by admin
+    - **Cancelled**: Cancelled by user
 
-    블랙리스트에 등록된 사령관번호는 예약이 불가능합니다.
+    Commander IDs on the blacklist cannot make reservations.
     """)

@@ -119,7 +119,9 @@ def show():
     col1, col2 = st.columns([1, 2])
 
     with col1:
-        trend_days = st.selectbox("추이 기간", [7, 14, 30], index=0)
+        trend_days = st.selectbox(
+            "추이 기간", [7, 14, 30], index=0, key="dashboard_trend_days"
+        )
 
     with col2:
         st.info(f"마지막 업데이트: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")

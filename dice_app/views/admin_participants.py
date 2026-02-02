@@ -62,7 +62,11 @@ def show():
             event_filter = st.text_input("이벤트명 필터", placeholder="예: 260128")
 
         with col2:
-            completed_filter = st.selectbox("참여완료 필터", ["전체", "완료", "미완료"])
+            completed_filter = st.selectbox(
+                "참여완료 필터",
+                ["전체", "완료", "미완료"],
+                key="participant_completed_filter",
+            )
 
         with col3:
             search_term = st.text_input("검색", placeholder="닉네임/사령관번호")

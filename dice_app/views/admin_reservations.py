@@ -52,12 +52,16 @@ def show():
 
     with col1:
         status_filter = st.selectbox(
-            "상태 필터", ["전체", "대기중", "승인됨", "거절됨", "취소됨"]
+            "상태 필터",
+            ["전체", "대기중", "승인됨", "거절됨", "취소됨"],
+            key="admin_status_filter",
         )
 
     with col2:
         blacklist_filter = st.selectbox(
-            "블랙리스트 필터", ["전체", "블랙리스트", "정상"]
+            "블랙리스트 필터",
+            ["전체", "블랙리스트", "정상"],
+            key="admin_blacklist_filter",
         )
 
     with col3:

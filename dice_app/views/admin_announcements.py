@@ -46,7 +46,9 @@ def show():
 
         # 카테고리 필터
         category_filter = st.selectbox(
-            "카테고리 필터", ["전체", "공지", "안내", "이벤트"]
+            "카테고리 필터",
+            ["전체", "공지", "안내", "이벤트"],
+            key="announcement_category_filter",
         )
 
         st.markdown("---")

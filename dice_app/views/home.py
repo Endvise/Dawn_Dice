@@ -320,10 +320,13 @@ def show():
                     "⚠️ Current session is full. Reservations will be added to waiting list."
                 )
 
-            if user and st.button(
-                "Go to Reservation", use_container_width=True, type="primary"
+            if st.button(
+                "Go to Reservation",
+                use_container_width=True,
+                type="primary",
+                key="home_go_to_reservation",
             ):
-                st.session_state["page"] = "reservation"
+                st.session_state["page"] = "📝 예약 신청"
                 st.rerun()
 
     else:
@@ -359,8 +362,8 @@ def show():
                     else:
                         st.error(message)
 
-            # Registration button (outside form)
-            if st.button("Sign Up", use_container_width=True):
+            # Sign Up button (outside form)
+            if st.button("Sign Up", use_container_width=True, key="home_register"):
                 st.session_state["show_register"] = True
                 st.rerun()
 
@@ -444,16 +447,16 @@ def show():
         unsafe_allow_html=True,
     )
 
-    # 사용자별 메시지 (관리자 전용)
+    # Admin-only messages
     if auth.is_admin():
         st.markdown("---")
-        st.info("💡 관리자 전용 메시지")
+        st.info("Admin Menu")
 
-        # 관리자 전용 대시보드 바로가기 링크
-        st.markdown("[📊 대시보드로 이동하면 현재 상태를 확인할 수 있습니다.")
+        # Admin dashboard link
+        st.markdown("[📊 Go to Dashboard to check current status")
 
-        # 관리자 전용 공지사항 바로가기 링크
-        st.markdown("[📢 공지사항 관리로 이동하면 회차별 공지를 작성할 수 있습니다.")
+        # Admin announcements link
+        st.markdown("[📢 Go to Announcements to create session announcements")
 
-        # 관리자 전용 회차 관리 바로가기 링크
-        st.markdown("[🎲 회차 관리로 이동하면 회차별 예약을 관리할 수 있습니다.")
+        # Admin event sessions link
+        st.markdown("[🎲 Go to Event Sessions to manage session reservations")

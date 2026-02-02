@@ -521,7 +521,24 @@ def check_blacklist(commander_id: str) -> Optional[Dict[str, Any]]:
                 import pandas as pd
                 from io import StringIO
 
-                df = pd.read_csv(StringIO(response.text))
+                try:
+                    df = pd.read_csv(
+                        StringIO(response.text),
+                        on_bad_lines="skip",
+                        encoding="utf-8",
+                    )
+                except Exception:
+                    try:
+                        df = pd.read_csv(
+                            StringIO(response.text),
+                            on_bad_lines="skip",
+                            encoding="utf-8-sig",
+                        )
+                    except Exception:
+                        df = pd.DataFrame()
+
+                if df.empty:
+                    return None
 
                 # 사령관번호(IGG 아이디) 컬럼 찾기 (정확한 매칑)
                 commander_id_str = str(commander_id)

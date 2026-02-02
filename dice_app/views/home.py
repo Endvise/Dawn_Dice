@@ -169,12 +169,12 @@ def show():
 
     security_utils.inject_devtools_block()
 
-    # 홈페이지
+    # Home page
     st.title("🎲 DaWn Dice Party")
-    st.markdown("by 엔티티")
+    st.markdown("by Entity")
     st.markdown("---")
 
-    # 예약 상태 표시
+    # Reservation status display
     status = get_reservation_status()
 
     # 활성화된 회차가 있으면 회차별 정보 표시
@@ -227,121 +227,127 @@ def show():
 
     st.markdown("---")
 
-    # 로그인 여부에 따른 메시지
+    # Login-based messages
     if auth.is_authenticated():
         user = auth.get_current_user()
 
-        st.markdown("### 👤 환영합니다!")
+        st.markdown("### 👤 Welcome!")
 
-        # 블랙리스트 체크
+        # Blacklist check
         if user.get("commander_id"):
             blacklisted = db.check_blacklist(user["commander_id"])
 
             if blacklisted:
-                st.error("⛔ 블랙리스트에 등록된 사용자입니다.")
-                st.info("관리자에게 문의하세요.")
+                st.error("⛔ You are registered on the blacklist.")
+                st.info("Please contact the administrator.")
                 return
 
-        # 사용자 정보 표시
-        st.markdown(f"""
-        - **닉네임**: {user.get("nickname", "Unknown")}
-        - **사령관번호**: {user.get("commander_id", "N/A")}
-        - **서버**: {user.get("server", "N/A")}
-        - **연맹**: {user.get("alliance", "없음") if user.get("alliance") else "없음"}
-        """)
+        # User info display
+        if user:
+            st.markdown(f"""
+            - **Nickname**: {user.get("nickname", "Unknown")}
+            - **Commander ID**: {user.get("commander_id", "N/A")}
+            - **Server**: {user.get("server", "N/A")}
+            - **Alliance**: {user.get("alliance", "None") if user.get("alliance") else "None"}
+            """)
 
-        # 내 예약 현황
-        my_reservations = db.list_reservations(user_id=user["id"])
+        # My reservations status
+        if user:
+            my_reservations = db.list_reservations(user_id=user["id"])
 
-        if my_reservations:
-            latest_reservation = my_reservations[0]
+            if my_reservations:
+                latest_reservation = my_reservations[0]
 
-            st.markdown("---")
-            st.markdown("### 📊 내 최신 예약 현황")
+                st.markdown("---")
+                st.markdown("### 📊 My Latest Reservation Status")
 
-            # 대기자 정보
-            if latest_reservation.get("status") == "waitlisted":
-                waitlist_order = latest_reservation.get("waitlist_order")
-                waitlist_position = latest_reservation.get("waitlist_position")
-                st.warning(f"🔵 대기자 명단에 등록되었습니다.")
-                st.info(f"대기자 순번: {waitlist_order}번")
-                st.info(f"현재 순번: {waitlist_position}번")
+                # Waitlist info
+                if latest_reservation.get("status") == "waitlisted":
+                    waitlist_order = latest_reservation.get("waitlist_order")
+                    waitlist_position = latest_reservation.get("waitlist_position")
+                    st.warning(f"🔵 You are registered on the waiting list.")
+                    st.info(f"Waitlist number: {waitlist_order}")
+                    st.info(f"Current position: {waitlist_position}")
 
-                # 예상 대기 시간 (하루에 1명씩 빠짐는 것으로 가정)
-                if waitlist_position > 0:
-                    expected_days = waitlist_position
-                    st.info(f"예상 대기 시간: 약 {expected_days}일")
+                    # Estimated waiting time (assuming 1 person leaves per day)
+                    if waitlist_position > 0:
+                        expected_days = waitlist_position
+                        st.info(f"Estimated waiting time: about {expected_days} days")
 
-            elif latest_reservation.get("status") == "pending":
-                st.success("🟡 예약 승인 대기중입니다.")
-                st.info("관리자가 승인하면 참여 가능합니다.")
+                elif latest_reservation.get("status") == "pending":
+                    st.success("🟡 Your reservation is pending approval.")
+                    st.info("You can participate once approved by administrator.")
 
-            elif latest_reservation.get("status") == "approved":
-                st.success("🟢 예약이 승인되었습니다!")
-                st.info(f"승인일시: {latest_reservation.get('approved_at', 'N/A')}")
+                elif latest_reservation.get("status") == "approved":
+                    st.success("🟢 Your reservation has been approved!")
+                    st.info(
+                        f"Approved at: {latest_reservation.get('approved_at', 'N/A')}"
+                    )
 
-            elif latest_reservation.get("status") == "rejected":
-                st.error("🔴 예약이 거절되었습니다.")
-                if latest_reservation.get("notes"):
-                    st.text(f"비고: {latest_reservation['notes']}")
+                elif latest_reservation.get("status") == "rejected":
+                    st.error("🔴 Your reservation has been rejected.")
+                    if latest_reservation.get("notes"):
+                        st.text(f"Notes: {latest_reservation['notes']}")
 
-            elif latest_reservation.get("status") == "cancelled":
-                st.info("⚪ 예약이 취소되었습니다.")
+                elif latest_reservation.get("status") == "cancelled":
+                    st.info("⚪ Your reservation has been cancelled.")
 
-            st.markdown(f"신청일시: {latest_reservation['created_at']}")
+                st.markdown(f"Applied at: {latest_reservation['created_at']}")
 
-            # 선착순 정보
-            st.markdown("---")
-            st.markdown("### ⏰ 선착순 정보")
+                # Queue position info
+                st.markdown("---")
+                st.markdown("### ⏰ Queue Position")
 
-            # 내 순위 계산
-            my_order, is_within = get_my_order(user["id"])
+                # My position calculation
+                my_order, is_within = get_my_order(user["id"])
 
-            if my_order and is_within:
-                st.success(f"현재 순위: {my_order}번 (정원 내)")
-            elif my_order:
-                st.warning(f"현재 순위: {my_order}번 (정원 외)")
-            else:
-                st.info("아직 예약 내역이 없습니다.")
+                if my_order and is_within:
+                    st.success(f"Current position: {my_order} (within capacity)")
+                elif my_order:
+                    st.warning(f"Current position: {my_order} (outside capacity)")
+                else:
+                    st.info("No reservation history yet.")
 
-        # 새로운 예약 안내
+            # New reservation guide
         if not my_reservations:
-            st.info("아직 예약 내역이 없습니다.")
+            st.info("No reservation history yet.")
             st.markdown("---")
 
-            if not status["is_session_active"]:
-                st.markdown("### 📝 예약 신청")
-            else:
+            if user and not status["is_session_active"]:
+                st.markdown("### 📝 Make Reservation")
+            elif user:
                 st.warning(
-                    "⚠️ 현재 회차가 마감되었습니다. 예약은 대기자 명단에 등록됩니다."
+                    "⚠️ Current session is full. Reservations will be added to waiting list."
                 )
 
-            if st.button("예약하러 가기", use_container_width=True, type="primary"):
+            if user and st.button(
+                "Go to Reservation", use_container_width=True, type="primary"
+            ):
                 st.session_state["page"] = "reservation"
                 st.rerun()
 
     else:
-        st.markdown("### 👋 환영합니다!")
-        st.markdown("DaWn Dice Party에 오신 것을 환영합니다!")
+        st.markdown("### 👋 Welcome!")
+        st.markdown("Welcome to DaWn Dice Party!")
         st.markdown("---")
 
-        # 로그인 버튼 영역 (왼쪽 정렬)
+        # Login button area (left aligned)
         col1, col2, col3 = st.columns([2, 1, 1])
 
         with col1:
-            st.markdown("### 📝 로그인")
+            st.markdown("### 📝 Login")
 
-            # 로그인 폼
+            # Login form
             with st.form("login_form"):
                 username = st.text_input(
-                    "사령관번호 또는 ID", key="home_login_username"
+                    "Commander ID or Username", key="home_login_username"
                 )
                 password = st.text_input(
-                    "비밀번호", type="password", key="home_login_password"
+                    "Password", type="password", key="home_login_password"
                 )
 
                 submitted = st.form_submit_button(
-                    "로그인", use_container_width=True, type="primary"
+                    "Login", use_container_width=True, type="primary"
                 )
 
                 if submitted:
@@ -353,53 +359,53 @@ def show():
                     else:
                         st.error(message)
 
-            # 회원가입 버튼 (폼 외부)
-            if st.button("회원가입", use_container_width=True):
+            # Registration button (outside form)
+            if st.button("Sign Up", use_container_width=True):
                 st.session_state["show_register"] = True
                 st.rerun()
 
         st.markdown("---")
 
-        # 주요 안내
-        st.markdown("### 📋 주요 안내")
+        # Main information
+        st.markdown("### 📋 Main Information")
 
         st.markdown("""
-        - **선착순 예약**: 먼저 예약한 분들 우선 참여
-        - **최대 참여자**: 회차별 180명
-        - **대기자 시스템**: 정원 초과 시 대기자 명단 자동 등록
-        - **사령관번호**: 10자리 숫자로 가입 가능
-        - **비밀번호**: 최소 8자 이상
+        - **First-come, first-served reservation**: Those who reserve first get priority
+        - **Maximum participants**: 180 per session
+        - **Waiting list system**: Automatically adds to waiting list when capacity exceeded
+        - **Commander ID**: Can register with 10-digit number
+        - **Password**: Minimum 8 characters
 
-        ## 회차별 시스템
+        ## Session-based System
 
-        - 회차별로 예약 마감 시 대기자 명단으로 자동 전환
-        - 기존 참여자는 기존 회차 우선 예약 가능
-        - 외부 참여자는 새 회차에 예약 가능
-        - 회차별 회차 마감 시에는 '회차 마감' 메시지 표시
+        - When session is full, automatically switches to waiting list registration
+        - Previous participants get priority in existing sessions
+        - New participants can reserve in new sessions
+        - When session is full, shows 'Session Full - Waiting List Only' message
 
-        ## 우선순위
+        ## Priority System
 
-        **1순위**: 기존 참여자 (이전 회차 참여자)
-        - 정원 외: 가입 순서대로 예약 가능
+        **1st Priority**: Previous participants (from previous sessions)
+        - Within capacity: Can reserve in order of registration
 
-        **2순위**: 회차별 선착순 예약
-        - 예약 순서대로 참여 가능
+        **2nd Priority**: Session-based first-come reservation
+        - Can participate in reservation order
 
-        ## 예약 마감 시
+        ## When Session is Full
 
-        - 예약이 마감되면 '[N회차] 예약 마감 - 대기순번 등록만 가능' 메시지
-        - 대기자 순번은 예약 순서대로 배정됩니다.
+        - When reservation is full, shows '[N] Session Full - Waiting List Only' message
+        - Waiting list numbers are assigned in reservation order.
         """)
 
         st.markdown("---")
 
-        # 공지사항 표시
-        st.markdown("### 📢 공지사항")
+        # Announcements display
+        st.markdown("### 📢 Announcements")
 
-        # 최신 공지사항 표시 (최대 3개, 상단 고정 우선)
+        # Latest announcements display (maximum 5, pinned first)
         announcements = db.list_announcements(is_active=True, limit=5)
 
-        # 상단 고정 공지 우선
+        # Pinned announcements first
         pinned = [a for a in announcements if a.get("is_pinned")]
         regular = [a for a in announcements if not a.get("is_pinned")]
 
@@ -407,27 +413,34 @@ def show():
 
         if display_announcements:
             for ann in display_announcements:
-                # 카테고리 뱃지
-                category_badge = {"공지": "📢", "안내": "ℹ️", "이벤트": "🎉"}
+                # Category badge
+                category_badge = {
+                    "공지": "📢",
+                    "안내": "ℹ️",
+                    "이벤트": "🎉",
+                    "notice": "📢",
+                    "guide": "ℹ️",
+                    "event": "🎉",
+                }
 
                 badge = category_badge.get(ann.get("category", "공지"), "📢")
 
-                # 상단 고정 표시
-                pin_indicator = " 📌 상단고정" if ann.get("is_pinned") else ""
+                # Pinned indicator
+                pin_indicator = " 📌 Pinned" if ann.get("is_pinned") else ""
 
                 with st.expander(f"{badge} {ann['title']}{pin_indicator}"):
                     st.markdown(ann["content"])
 
                     st.markdown(
-                        f"작성자: {ann.get('author_name', 'Unknown')} | 작성일: {ann['created_at'][:19]}"
+                        f"Author: {ann.get('author_name', 'Unknown')} | Created: {ann['created_at'][:19]}"
                     )
         else:
-            st.info("등록된 공지사항이 없습니다.")
+            st.info("No registered announcements.")
 
-    # 마크다운
+    # Footer
     st.markdown("---")
     st.markdown(
-        "<div style='text-align: center; color: gray;'>©2026 DaWn Dice Party by 엔티티</div>",
+        "<div style='text-align: center; color: gray;'>©2026 DaWn Dice Party by Entity</div>",
         unsafe_allow_html=True,
     )
 

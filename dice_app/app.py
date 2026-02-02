@@ -39,17 +39,14 @@ def main():
             st.markdown("### 📋 메뉴")
 
             # 일반 사용자/관리자/마스터 공통 메뉴
-            page = st.radio("페이지 선택", ["🏠 홈", "📝 예약 신청", "📊 내 예약 현황"])
-
-            # 관리자/마스터 메뉴 (관리자 페이지 변수 초기화)
-            admin_page = None
             if auth.is_admin():
-                st.markdown("---")
-                st.markdown("### 🔧 관리자 메뉴")
-
-                admin_page = st.radio(
-                    "관리자 페이지",
+                # 관리자용 페이지 선택 (모든 관리자 메뉴)
+                page = st.radio(
+                    "관리자 페이지 선택",
                     [
+                        "🏠 홈",
+                        "📝 예약 신청",
+                        "📊 내 예약 현황",
                         "📊 대시보드",
                         "🎲 회차 관리",
                         "📋 예약 관리",
@@ -58,6 +55,23 @@ def main():
                         "📢 공지사항 관리",
                     ],
                 )
+            else:
+                # 일반 사용자 메뉴
+                page = st.radio(
+                    "페이지 선택", ["🏠 홈", "📝 예약 신청", "📊 내 예약 현황"]
+                )
+
+            # 관리자 페이지 변수 (이전 버전과 호환성)
+            admin_page = None
+            if auth.is_admin() and page in [
+                "📊 대시보드",
+                "🎲 회차 관리",
+                "📋 예약 관리",
+                "👥 참여자 관리",
+                "🚫 블랙리스트 관리",
+                "📢 공지사항 관리",
+            ]:
+                admin_page = page  # 호환성 유지
 
             # 마스터 전용 메뉴
             if auth.is_master():
@@ -89,32 +103,43 @@ def main():
 
             views.my_reservations.show()
 
-        # 관리자/마스터 전용 페이지
-        if auth.is_admin():
-            if admin_page == "📊 대시보드":
-                import views.admin_dashboard
+        # 페이지별 라우팅
+        if page == "🏠 홈":
+            import views.home
 
-                views.admin_dashboard.show()
-            elif admin_page == "🎲 회차 관리":
-                import views.event_sessions
+            views.home.show()
+        elif page == "📝 예약 신청":
+            import views.reservation
 
-                views.event_sessions.show()
-            elif admin_page == "📋 예약 관리":
-                import views.admin_reservations
+            views.reservation.show()
+        elif page == "📊 내 예약 현황":
+            import views.my_reservations
 
-                views.admin_reservations.show()
-            elif admin_page == "👥 참여자 관리":
-                import views.admin_participants
+            views.my_reservations.show()
+        elif page == "📊 대시보드":
+            import views.admin_dashboard
 
-                views.admin_participants.show()
-            elif admin_page == "🚫 블랙리스트 관리":
-                import views.admin_blacklist
+            views.admin_dashboard.show()
+        elif page == "🎲 회차 관리":
+            import views.event_sessions
 
-                views.admin_blacklist.show()
-            elif admin_page == "📢 공지사항 관리":
-                import views.admin_announcements
+            views.event_sessions.show()
+        elif page == "📋 예약 관리":
+            import views.admin_reservations
 
-                views.admin_announcements.show()
+            views.admin_reservations.show()
+        elif page == "👥 참여자 관리":
+            import views.admin_participants
+
+            views.admin_participants.show()
+        elif page == "🚫 블랙리스트 관리":
+            import views.admin_blacklist
+
+            views.admin_blacklist.show()
+        elif page == "📢 공지사항 관리":
+            import views.admin_announcements
+
+            views.admin_announcements.show()
 
         # 마스터 전용 페이지
         if auth.is_master():

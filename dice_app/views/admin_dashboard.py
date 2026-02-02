@@ -86,7 +86,15 @@ def get_reservation_trend(days: int = 7) -> list:
             fetch="one",
         )
 
-        count = result["count"] if result and "count" in result else 0
+        if result and isinstance(result, dict) and "count" in result:
+            count = result["count"]
+        elif result and hasattr(result, "__getitem__"):
+            try:
+                count = result[0]  # 첫 번째 컬럼이 COUNT(*) 결과
+            except (IndexError, KeyError, TypeError):
+                count = 0
+        else:
+            count = 0
         trend.append({"date": date_str, "count": count})
 
     return trend

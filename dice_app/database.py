@@ -523,17 +523,74 @@ def check_blacklist(commander_id: str) -> Optional[Dict[str, Any]]:
 
                 df = pd.read_csv(StringIO(response.text))
 
-                # 사령관번호(IGG 아이디) 컬럼 찾기
+                # 사령관번호(IGG 아이디) 컬럼 찾기 (정확한 매칑)
+                commander_id_str = str(commander_id)
+
+                # ID 컬럼 우선 매칑 (정확도 높음)
+                id_columns = []
                 for col in df.columns:
-                    if "igg" in col.lower() or "id" in col.lower():
-                        if str(commander_id) in df[col].astype(str).values:
-                            idx = df[df[col].astype(str) == str(commander_id)].index[0]
+                    col_lower = str(col).lower()
+                    # 정확한 ID 컬럼만 선택
+                    if (
+                        col_lower == "id"
+                        or col_lower == "사령관번호"
+                        or (
+                            col_lower.startswith("igg")
+                            and not any(
+                                kw in col_lower
+                                for kw in ["닉네임", "이름", "연맹", "alliance", "소속"]
+                            )
+                        )
+                    ):
+                        id_columns.append(col)
+
+                # ID 컬럼에서 정확히 매칭
+                for col in id_columns:
+                    try:
+                        col_data = df[col].astype(str).str.strip()
+                        matched_rows = df[col_data == commander_id_str]
+
+                        if not matched_rows.empty:
+                            idx = matched_rows.index[0]
                             return {
                                 "commander_id": commander_id,
                                 "nickname": df.iloc[idx].get("nickname", ""),
                                 "reason": "Google Sheets blacklist",
                                 "is_active": 1,
+                                "source": "Google Sheets",
+                                "matched_column": col,
                             }
+                    except Exception:
+                        continue
+
+                # 부분 매칭 (긴급 대안)
+                for col in df.columns:
+                    if any(
+                        keyword in str(col).lower() for keyword in ["igg", "사령관"]
+                    ):
+                        try:
+                            if (
+                                df[col]
+                                .astype(str)
+                                .str.contains(commander_id_str, na=False)
+                                .any()
+                            ):
+                                matched_rows = df[
+                                    df[col]
+                                    .astype(str)
+                                    .str.contains(commander_id_str, na=False)
+                                ]
+                                idx = matched_rows.index[0]
+                                return {
+                                    "commander_id": commander_id,
+                                    "nickname": df.iloc[idx].get("nickname", ""),
+                                    "reason": "Google Sheets blacklist (partial match)",
+                                    "is_active": 1,
+                                    "source": "Google Sheets",
+                                    "matched_column": col,
+                                }
+                        except Exception:
+                            continue
     except Exception as e:
         st.warning(f"Google Sheets 블랙리스트 조회 실패: {e}")
 

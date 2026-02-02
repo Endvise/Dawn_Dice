@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-관리자 공지사항 관리 페이지
+Admin Announcements Management Page
 """
 
 import streamlit as st
@@ -10,17 +10,16 @@ from datetime import datetime
 
 
 def show():
-    """공지사항 관리 페이지 표시"""
-    # 관리자 권한 확인
+    """Show announcements management page"""
     auth.require_login(required_role="admin")
 
     user = auth.get_current_user()
     is_master = auth.is_master()
 
-    st.title("📢 공지사항 관리")
+    st.title("Announcements Management")
     st.markdown("---")
 
-    # 통계
+    # Statistics
     all_announcements = db.list_announcements(is_active=True)
     total_announcements = len(all_announcements)
     pinned_announcements = len([a for a in all_announcements if a.get("is_pinned")])
@@ -28,45 +27,49 @@ def show():
     col1, col2 = st.columns(2)
 
     with col1:
-        st.metric("전체 공지사항", f"{total_announcements}건")
+        st.metric("Total Announcements", f"{total_announcements}")
 
     with col2:
-        st.metric("상단 고정", f"{pinned_announcements}건")
+        st.metric("Pinned", f"{pinned_announcements}")
 
     st.markdown("---")
 
-    # 탭
+    # Tabs
     tab1, tab2, tab3 = st.tabs(
-        ["📋 공지사항 목록", "➕ 공지사항 작성", "📜 비활성화 목록"]
+        ["Announcements List", "Create Announcement", "Inactive List"]
     )
 
-    # 탭 1: 공지사항 목록
+    # Tab 1: Announcements list
     with tab1:
-        st.markdown("### 📋 활성화된 공지사항")
+        st.markdown("### Active Announcements")
 
-        # 카테고리 필터
         category_filter = st.selectbox(
-            "카테고리 필터",
-            ["전체", "공지", "안내", "이벤트"],
+            "Category Filter",
+            ["All", "Notice", "Guide", "Event"],
             key="announcement_category_filter",
         )
 
         st.markdown("---")
 
-        # 필터링
         filtered_announcements = []
         for ann in all_announcements:
-            if category_filter != "전체" and ann.get("category") != category_filter:
+            if category_filter != "All" and ann.get("category") != category_filter:
                 continue
             filtered_announcements.append(ann)
 
-        st.markdown(f"### 📋 공지사항 목록 ({len(filtered_announcements)}건)")
+        st.markdown(f"### Announcements ({len(filtered_announcements)})")
 
         if filtered_announcements:
             for ann in filtered_announcements:
-                # 상단 고정 표시
-                pinned_badge = "📌 상단고정 " if ann.get("is_pinned") else ""
-                category_badge = {"공지": "📢", "안내": "ℹ️", "이벤트": "🎉"}
+                pinned_badge = "📌 Pinned " if ann.get("is_pinned") else ""
+                category_badge = {
+                    "notice": "📢",
+                    "guide": "ℹ️",
+                    "event": "🎉",
+                    "공지": "📢",
+                    "안내": "ℹ️",
+                    "이벤트": "🎉",
+                }
 
                 badge = category_badge.get(ann.get("category"), "📢")
 
@@ -74,80 +77,74 @@ def show():
                     col1, col2 = st.columns([2, 1])
 
                     with col1:
-                        # 미리보기
-                        st.markdown("### 📋 내용 미리보기")
+                        st.markdown("### Preview")
                         st.markdown(ann["content"])
 
                         st.markdown(f"""
-                        **카테고리**: {ann.get("category", "공지")}
-                        **작성자**: {ann.get("author_name", "Unknown")}
-                        **작성일시**: {ann.get("created_at", "N/A")}
+                        **Category**: {ann.get("category", "notice")}
+                        **Author**: {ann.get("author_name", "Unknown")}
+                        **Created At**: {ann.get("created_at", "N/A")}
                         """)
 
                         if ann.get("updated_at"):
-                            st.info(f"수정일시: {ann['updated_at']}")
+                            st.info(f"Updated at: {ann['updated_at']}")
 
                     with col2:
-                        st.markdown("### 액션")
+                        st.markdown("### Actions")
 
-                        # 상단 고정 토글
                         if st.button(
-                            "고정 해제" if ann.get("is_pinned") else "상단 고정",
+                            "Unpin" if ann.get("is_pinned") else "Pin to Top",
                             key=f"toggle_pin_{ann['id']}",
                             use_container_width=True,
                         ):
                             try:
                                 new_pinned = not ann.get("is_pinned")
                                 db.update_announcement(ann["id"], is_pinned=new_pinned)
-                                st.success("✓ 상태가 업데이트되었습니다.")
+                                st.success("Status updated.")
                                 st.rerun()
                             except Exception as e:
-                                st.error(f"업데이트 중 오류가 발생했습니다: {e}")
+                                st.error(f"Error updating: {e}")
 
-                        # 수정 버튼
                         if st.button(
-                            "수정", key=f"edit_{ann['id']}", use_container_width=True
+                            "Edit", key=f"edit_{ann['id']}", use_container_width=True
                         ):
                             st.session_state["edit_announcement_id"] = ann["id"]
                             st.rerun()
 
-                        # 비활성화 버튼
                         if st.button(
-                            "비활성화",
+                            "Deactivate",
                             key=f"deactivate_{ann['id']}",
                             use_container_width=True,
                         ):
-                            if st.confirm("정말 이 공지사항을 비활성화하시겠습니까?"):
+                            if st.confirm("Deactivate this announcement?"):
                                 try:
                                     db.update_announcement(ann["id"], is_active=0)
-                                    st.success("✓ 비활성화되었습니다.")
+                                    st.success("Deactivated.")
                                     st.rerun()
                                 except Exception as e:
-                                    st.error(f"비활성화 중 오류가 발생했습니다: {e}")
+                                    st.error(f"Error deactivating: {e}")
 
-                        # 영구 삭제 버튼 (마스터만)
                         if is_master:
                             if st.button(
-                                "영구 삭제",
+                                "Delete Permanently",
                                 key=f"delete_{ann['id']}",
                                 type="secondary",
                                 use_container_width=True,
                             ):
                                 if st.confirm(
-                                    "정말 영구 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다."
+                                    "Delete permanently? This cannot be undone."
                                 ):
                                     try:
                                         db.delete_announcement(ann["id"])
-                                        st.success("✓ 영구 삭제되었습니다.")
+                                        st.success("Permanently deleted.")
                                         st.rerun()
                                     except Exception as e:
-                                        st.error(f"삭제 중 오류가 발생했습니다: {e}")
+                                        st.error(f"Error deleting: {e}")
         else:
-            st.info("활성화된 공지사항이 없습니다.")
+            st.info("No active announcements.")
 
-    # 탭 2: 공지사항 작성
+    # Tab 2: Create announcement
     with tab2:
-        # 수정 모드 체크
         edit_mode = "edit_announcement_id" in st.session_state
 
         if edit_mode:
@@ -155,108 +152,105 @@ def show():
             ann = db.get_announcement_by_id(announcement_id)
 
             if ann:
-                st.markdown(f"### ✏️ 공지사항 수정 (ID: {announcement_id})")
+                st.markdown(f"### Edit Announcement (ID: {announcement_id})")
             else:
-                st.error("공지사항을 찾을 수 없습니다.")
+                st.error("Announcement not found.")
                 st.session_state.pop("edit_announcement_id", None)
                 st.rerun()
         else:
-            st.markdown("### ➕ 공지사항 작성")
+            st.markdown("### Create Announcement")
             ann = None
 
         col1, col2 = st.columns([1, 2])
 
         with col1:
-            # 폼
             title = st.text_input(
-                "제목",
+                "Title",
                 value=ann["title"] if ann else "",
-                placeholder="공지사항 제목을 입력하세요",
+                placeholder="Enter announcement title",
                 key="announcement_title",
             )
 
             category = st.selectbox(
-                "카테고리",
-                ["공지", "안내", "이벤트"],
-                index=["공지", "안내", "이벤트"].index(ann.get("category", "공지"))
+                "Category",
+                ["notice", "guide", "event"],
+                index=["notice", "guide", "event"].index(ann.get("category", "notice"))
                 if ann
                 else 0,
                 key="announcement_category",
             )
 
             is_pinned = st.checkbox(
-                "상단 고정",
+                "Pin to Top",
                 value=ann.get("is_pinned", False) if ann else False,
                 key="announcement_pinned",
             )
 
-            st.markdown("### 📝 내용 (Markdown 지원)")
+            st.markdown("### Content (Markdown supported)")
 
             content = st.text_area(
-                "내용",
+                "Content",
                 value=ann.get("content", "") if ann else "",
-                placeholder="공지사항 내용을 입력하세요...",
+                placeholder="Enter announcement content...",
                 height=200,
                 key="announcement_content",
             )
 
-            # Markdown 미리보기
             if content:
-                st.markdown("### 👁️ 미리보기")
+                st.markdown("### Preview")
                 st.markdown(content)
 
         with col2:
-            st.markdown("### 💡 안내")
+            st.markdown("### Guide")
 
             st.markdown("""
-            **카테고리**:
-            - 📢 **공지**: 중요한 시스템 공지
-            - ℹ️ **안내**: 사용자 안내사항
-            - 🎉 **이벤트**: 이벤트 관련 정보
+            **Categories:**
+            - 📢 **Notice**: Important system announcements
+            - ℹ️ **Guide**: User guides
+            - 🎉 **Event**: Event information
 
-            **상단 고정**:
-            - 상단 고정된 공지는 홈페이지 맨 위에 표시됩니다.
-            - 여러 개가 고정될 경우 최신순으로 표시됩니다.
+            **Pin to Top:**
+            - Pinned announcements appear at the top of the homepage
+            - Multiple pinned items show in reverse chronological order
 
-            **Markdown 지원**:
-            - # 제목 (H1)
-            - ## 소제목 (H2)
-            - **굵은 텍스트**
-            - *기울임 텍스트*
-            - [링크](URL)
-            - ```코드```
+            **Markdown Support:**
+            - # Heading (H1)
+            - ## Subheading (H2)
+            - **Bold text**
+            - *Italic text*
+            - [Link](URL)
+            - ```code```
 
-            **예시**:
+            **Example:**
             ```markdown
-            # 새로운 기능 안내
+            # New Feature Guide
 
-            다음 기능이 추가되었습니다:
-            - 기능 1
-            - 기능 2
+            The following features have been added:
+            - Feature 1
+            - Feature 2
 
-            **중요**: 3월 1일부터 적용됩니다.
+            **Important**: Effective from March 1st.
             ```
             """)
 
-        # 버튼 영역
         st.markdown("---")
 
         if edit_mode:
             col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
 
             with col_btn1:
-                if st.button("취소", use_container_width=True):
+                if st.button("Cancel", use_container_width=True):
                     st.session_state.pop("edit_announcement_id", None)
                     st.rerun()
 
             with col_btn2:
-                if st.button("수정", type="primary", use_container_width=True):
+                if st.button("Update", type="primary", use_container_width=True):
                     if not title:
-                        st.error("제목을 입력해주세요.")
+                        st.error("Enter title.")
                         return
 
                     if not content:
-                        st.error("내용을 입력해주세요.")
+                        st.error("Enter content.")
                         return
 
                     try:
@@ -268,27 +262,27 @@ def show():
                             content=content,
                         )
 
-                        st.success("✓ 공지사항이 수정되었습니다.")
+                        st.success("Announcement updated.")
                         st.session_state.pop("edit_announcement_id", None)
                         st.rerun()
                     except Exception as e:
-                        st.error(f"수정 중 오류가 발생했습니다: {e}")
+                        st.error(f"Error updating: {e}")
 
             with col_btn3:
-                if st.button("새로 작성", use_container_width=True):
+                if st.button("New", use_container_width=True):
                     st.session_state.pop("edit_announcement_id", None)
                     st.rerun()
         else:
             col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
 
             with col_btn2:
-                if st.button("공지사항 등록", type="primary", use_container_width=True):
+                if st.button("Publish", type="primary", use_container_width=True):
                     if not title:
-                        st.error("제목을 입력해주세요.")
+                        st.error("Enter title.")
                         return
 
                     if not content:
-                        st.error("내용을 입력해주세요.")
+                        st.error("Enter content.")
                         return
 
                     try:
@@ -300,28 +294,30 @@ def show():
                             created_by=user["id"],
                         )
 
-                        st.success(
-                            f"✓ 공지사항이 등록되었습니다! (ID: {announcement_id})"
-                        )
-                        st.info("홈페이지에서 확인할 수 있습니다.")
+                        st.success(f"Announcement published! (ID: {announcement_id})")
+                        st.info("Check on the homepage.")
                         st.rerun()
                     except Exception as e:
-                        st.error(f"등록 중 오류가 발생했습니다: {e}")
+                        st.error(f"Error publishing: {e}")
 
-    # 탭 3: 비활성화 목록
+    # Tab 3: Inactive list
     with tab3:
-        st.markdown("### 📜 비활성화된 공지사항")
+        st.markdown("### Inactive Announcements")
 
-        # 비활성화 목록 불러오기
         inactive_announcements = db.list_announcements(is_active=False)
 
         if inactive_announcements:
-            st.info(
-                f"{len(inactive_announcements)}개의 비활성화된 공지사항이 있습니다."
-            )
+            st.info(f"{len(inactive_announcements)} inactive announcements.")
 
             for ann in inactive_announcements:
-                category_badge = {"공지": "📢", "안내": "ℹ️", "이벤트": "🎉"}
+                category_badge = {
+                    "notice": "📢",
+                    "guide": "ℹ️",
+                    "event": "🎉",
+                    "공지": "📢",
+                    "안내": "ℹ️",
+                    "이벤트": "🎉",
+                }
 
                 badge = category_badge.get(ann.get("category"), "📢")
 
@@ -332,60 +328,57 @@ def show():
                         st.markdown(ann["content"])
 
                         st.markdown(f"""
-                        **카테고리**: {ann.get("category", "공지")}
-                        **작성자**: {ann.get("author_name", "Unknown")}
-                        **작성일시**: {ann.get("created_at", "N/A")}
+                        **Category**: {ann.get("category", "notice")}
+                        **Author**: {ann.get("author_name", "Unknown")}
+                        **Created At**: {ann.get("created_at", "N/A")}
                         """)
 
                     with col2:
-                        # 활성화 버튼
                         if st.button(
-                            "활성화",
+                            "Activate",
                             key=f"activate_{ann['id']}",
                             use_container_width=True,
                         ):
                             try:
                                 db.update_announcement(ann["id"], is_active=1)
-                                st.success("✓ 활성화되었습니다.")
+                                st.success("Activated.")
                                 st.rerun()
                             except Exception as e:
-                                st.error(f"활성화 중 오류가 발생했습니다: {e}")
+                                st.error(f"Error activating: {e}")
 
-                        # 영구 삭제 버튼 (마스터만)
                         if is_master:
                             if st.button(
-                                "영구 삭제",
+                                "Delete Permanently",
                                 key=f"permanent_delete_{ann['id']}",
                                 type="secondary",
                                 use_container_width=True,
                             ):
                                 if st.confirm(
-                                    "정말 영구 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다."
+                                    "Delete permanently? This cannot be undone."
                                 ):
                                     try:
                                         db.delete_announcement(ann["id"])
-                                        st.success("✓ 영구 삭제되었습니다.")
+                                        st.success("Permanently deleted.")
                                         st.rerun()
                                     except Exception as e:
-                                        st.error(f"삭제 중 오류가 발생했습니다: {e}")
+                                        st.error(f"Error deleting: {e}")
         else:
-            st.info("비활성화된 공지사항이 없습니다.")
+            st.info("No inactive announcements.")
 
     st.markdown("---")
 
-    # 안내 메시지
     st.markdown("""
-    ### 💡 관리자 안내
+    ### Admin Guide
 
-    - **활성화**: 홈페이지에서 보이는 공지사항
-    - **비활성화**: 보이지 않는 공지사항 (보관용)
-    - **상단 고정**: 홈페이지 맨 위에 표시
-    - **Markdown**: 다양한 포맷 지원
+    - **Active**: Visible on homepage
+    - **Inactive**: Hidden (archived)
+    - **Pin to Top**: Shows at top of homepage
+    - **Markdown**: Supports various formats
 
-    **공지사항 우선순위**:
-    1. 상단 고정된 공지
-    2. 최신 작성 공지
-    3. 카테고리별 그룹화
+    **Announcement Priority:**
+    1. Pinned announcements
+    2. Most recent
+    3. Grouped by category
 
-    마스터 계정만 영구 삭제가 가능합니다.
+    Only master accounts can permanently delete.
     """)

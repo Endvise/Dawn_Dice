@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-관리자 대시보드 페이지 (실시간 통계)
+Admin Dashboard Page (Real-time Statistics)
 """
 
 import streamlit as st
@@ -11,13 +11,13 @@ from datetime import datetime, timedelta
 
 
 def get_dashboard_stats() -> dict:
-    """대시보드 통계를 반환합니다."""
-    # 사용자 통계
+    """Return dashboard statistics."""
+    # User statistics
     total_users = len(db.list_users())
     active_users = len(db.list_users(is_active=True))
     admin_users = len(db.list_users(role="admin"))
 
-    # 예약 통계
+    # Reservation statistics
     all_reservations = db.list_reservations()
 
     pending = len([r for r in all_reservations if r["status"] == "pending"])
@@ -26,19 +26,19 @@ def get_dashboard_stats() -> dict:
     cancelled = len([r for r in all_reservations if r["status"] == "cancelled"])
     waitlisted = len([r for r in all_reservations if r["status"] == "waitlisted"])
 
-    # 블랙리스트 통계
+    # Blacklist statistics
     blacklist = db.list_blacklist(is_active=True)
 
-    # 참여자 통계
+    # Participant statistics
     participants = db.list_participants()
     completed = len([p for p in participants if p.get("completed")])
     confirmed = len([p for p in participants if p.get("confirmed")])
 
-    # 공지사항 통계
+    # Announcement statistics
     announcements = db.list_announcements(is_active=True)
     pinned = len([a for a in announcements if a.get("is_pinned")])
 
-    # 총 참여자 수 (기존 + 승인된 예약)
+    # Total participants (existing + approved reservations)
     total_participants = completed + approved
 
     return {
@@ -68,14 +68,13 @@ def get_dashboard_stats() -> dict:
 
 
 def get_reservation_trend(days: int = 7) -> list:
-    """예약 추이를 반환합니다."""
+    """Return reservation trend."""
     trend = []
 
     for i in range(days):
         date = datetime.now() - timedelta(days=days - 1 - i)
         date_str = date.strftime("%Y-%m-%d")
 
-        # 해당 날짜의 예약 수
         result = execute_query(
             """
             SELECT COUNT(*) as count
@@ -90,7 +89,7 @@ def get_reservation_trend(days: int = 7) -> list:
             count = result["count"]
         elif result and hasattr(result, "__getitem__"):
             try:
-                count = result[0]  # 첫 번째 컬럼이 COUNT(*) 결과
+                count = result[0]
             except (IndexError, KeyError, TypeError):
                 count = 0
         else:
@@ -101,85 +100,77 @@ def get_reservation_trend(days: int = 7) -> list:
 
 
 def show():
-    """대시보드 페이지 표시"""
-    # 관리자 권한 확인
+    """Show dashboard page"""
     auth.require_login(required_role="admin")
 
     user = auth.get_current_user()
     is_master = auth.is_master()
 
-    st.title("📊 대시보드")
+    st.title("Dashboard")
     st.markdown("---")
 
-    # 실시간 업데이트
-    if st.button("🔄 새로고침", use_container_width=True):
+    if st.button("Refresh", use_container_width=True):
         st.rerun()
 
-    # 기간 선택
     col1, col2 = st.columns([1, 2])
 
     with col1:
         trend_days = st.selectbox(
-            "추이 기간", [7, 14, 30], index=0, key="dashboard_trend_days"
+            "Trend Period", [7, 14, 30], index=0, key="dashboard_trend_days"
         )
 
     with col2:
-        st.info(f"마지막 업데이트: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        st.info(f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-    # 통계 가져오기
     stats = get_dashboard_stats()
 
-    # ===== 메인 카드 =====
-    st.markdown("## 📋 주요 통계")
+    st.markdown("## Key Statistics")
 
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
         if stats["overall"]["is_full"]:
-            st.error("⛔ 예약 마감")
+            st.error("Full - No Reservations")
         else:
-            st.success("✅ 예약 가능")
+            st.success("Open for Reservations")
 
         st.metric(
-            "참여자",
-            f"{stats['overall']['total_participants']} / {stats['overall']['max_participants']}명",
-            delta=f"{stats['overall']['waitlist_count']}명 대기중",
+            "Participants",
+            f"{stats['overall']['total_participants']} / {stats['overall']['max_participants']}",
+            delta=f"{stats['overall']['waitlist_count']} waiting",
             delta_color="normal" if stats["overall"]["waitlist_count"] > 0 else "off",
         )
 
     with col2:
-        st.metric("예약 대기중", f"{stats['reservations']['pending']}건")
+        st.metric("Pending", f"{stats['reservations']['pending']}")
 
     with col3:
-        st.metric("승인된 예약", f"{stats['reservations']['approved']}건")
+        st.metric("Approved", f"{stats['reservations']['approved']}")
 
     with col4:
-        st.metric("대기자", f"{stats['reservations']['waitlisted']}명")
+        st.metric("Waitlist", f"{stats['reservations']['waitlisted']}")
 
     st.markdown("---")
 
-    # ===== 카테고리별 통계 =====
     tab1, tab2, tab3, tab4, tab5 = st.tabs(
-        ["👤 사용자", "📝 예약", "👥 참여자", "🚫 블랙리스트", "📢 공지사항"]
+        ["Users", "Reservations", "Participants", "Blacklist", "Announcements"]
     )
 
-    # 탭 1: 사용자
     with tab1:
-        st.markdown("### 👤 사용자 통계")
+        st.markdown("### User Statistics")
 
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            st.metric("전체 사용자", f"{stats['users']['total']}명")
+            st.metric("Total Users", f"{stats['users']['total']}")
 
         with col2:
-            st.metric("활성 사용자", f"{stats['users']['active']}명")
+            st.metric("Active Users", f"{stats['users']['active']}")
 
         with col3:
-            st.metric("관리자", f"{stats['users']['admin']}명")
+            st.metric("Admins", f"{stats['users']['admin']}")
 
-        # 사용자 목록
-        st.markdown("#### 📋 사용자 목록")
+        st.markdown("#### User List")
 
         users_list = db.list_users()
 
@@ -193,83 +184,79 @@ def show():
                     f"{badge} {user_data.get('username', user_data.get('commander_id', 'Unknown'))} - {user_data.get('nickname', 'Unknown')}"
                 ):
                     st.markdown(f"""
-                    **역할**: {user_data.get("role", "Unknown")}
-                    **서버**: {user_data.get("server", "N/A")}
-                    **연맹**: {user_data.get("alliance", "없음") if user_data.get("alliance") else "없음"}
-                    **생성일시**: {user_data.get("created_at", "N/A")}
-                    **마지막 로그인**: {user_data.get("last_login", "N/A") if user_data.get("last_login") else "없음"}
-                    **활성화**: {"활성" if user_data.get("is_active") else "비활성"}
+                    **Role**: {user_data.get("role", "Unknown")}
+                    **Server**: {user_data.get("server", "N/A")}
+                    **Alliance**: {user_data.get("alliance", "None") if user_data.get("alliance") else "None"}
+                    **Created At**: {user_data.get("created_at", "N/A")}
+                    **Last Login**: {user_data.get("last_login", "N/A") if user_data.get("last_login") else "None"}
+                    **Status**: {"Active" if user_data.get("is_active") else "Inactive"}
                     """)
 
                     if user_data.get("failed_attempts", 0) > 0:
-                        st.warning(f"⚠️ 로그인 실패: {user_data['failed_attempts']}회")
+                        st.warning(f"Login failures: {user_data['failed_attempts']}")
 
-                    # 로그인 실패 초기화 버튼
                     if user_data.get("failed_attempts", 0) > 0 and is_master:
                         if st.button(
-                            "실패 횟수 초기화",
+                            "Reset Failures",
                             key=f"reset_failed_{user_data['id']}",
                             use_container_width=True,
                         ):
                             db.update_user(user_data["id"], failed_attempts=0)
-                            st.success("✓ 초기화되었습니다.")
+                            st.success("Reset.")
                             st.rerun()
 
         else:
-            st.info("등록된 사용자가 없습니다.")
+            st.info("No registered users.")
 
-    # 탭 2: 예약
     with tab2:
-        st.markdown("### 📝 예약 통계")
+        st.markdown("### Reservation Statistics")
 
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            st.metric("전체 예약", f"{stats['reservations']['total']}건")
+            st.metric("Total", f"{stats['reservations']['total']}")
 
         with col2:
-            st.metric("대기중", f"{stats['reservations']['pending']}건")
+            st.metric("Pending", f"{stats['reservations']['pending']}")
 
         with col3:
             st.metric(
-                "완료",
-                f"{stats['reservations']['approved'] + stats['reservations']['rejected']}건",
+                "Completed",
+                f"{stats['reservations']['approved'] + stats['reservations']['rejected']}",
             )
 
-        # 예약 상태 분포
-        st.markdown("#### 📊 예약 상태 분포")
+        st.markdown("#### Reservation Status Distribution")
 
         status_data = [
-            {"상태": "대기중", "건수": stats["reservations"]["pending"]},
-            {"상태": "승인됨", "건수": stats["reservations"]["approved"]},
-            {"상태": "거절됨", "건수": stats["reservations"]["rejected"]},
-            {"상태": "취소됨", "건수": stats["reservations"]["cancelled"]},
-            {"상태": "대기자", "건수": stats["reservations"]["waitlisted"]},
+            {"Status": "Pending", "Count": stats["reservations"]["pending"]},
+            {"Status": "Approved", "Count": stats["reservations"]["approved"]},
+            {"Status": "Rejected", "Count": stats["reservations"]["rejected"]},
+            {"Status": "Cancelled", "Count": stats["reservations"]["cancelled"]},
+            {"Status": "Waitlist", "Count": stats["reservations"]["waitlisted"]},
         ]
 
         for data in status_data:
             color = {
-                "대기중": "🟡",
-                "승인됨": "🟢",
-                "거절됨": "🔴",
-                "취소됨": "⚪",
-                "대기자": "🔵",
+                "Pending": "🟡",
+                "Approved": "🟢",
+                "Rejected": "🔴",
+                "Cancelled": "⚪",
+                "Waitlist": "🔵",
             }
 
-            badge = color.get(data["상태"], "❓")
+            badge = color.get(data["Status"], "❓")
             percentage = (
-                (data["건수"] / stats["reservations"]["total"] * 100)
+                (data["Count"] / stats["reservations"]["total"] * 100)
                 if stats["reservations"]["total"] > 0
                 else 0
             )
 
             st.markdown(f"""
-            **{badge} {data["상태"]}**: {data["건수"]}건 ({percentage:.1f}%)
+            **{badge} {data["Status"]}**: {data["Count"]} ({percentage:.1f}%)
             """)
 
-        # 예약 추이
         st.markdown("---")
-        st.markdown(f"#### 📈 최근 {trend_days}일 예약 추이")
+        st.markdown(f"#### Recent {trend_days} Day Trend")
 
         trend = get_reservation_trend(trend_days)
 
@@ -279,30 +266,27 @@ def show():
             df = pd.DataFrame(trend)
             st.line_chart(df.set_index("date"))
         else:
-            st.info("데이터가 없습니다.")
+            st.info("No data.")
 
-    # 탭 3: 참여자
     with tab3:
-        st.markdown("### 👥 참여자 통계")
+        st.markdown("### Participant Statistics")
 
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            st.metric("전체 참여자", f"{stats['participants']['total']}명")
+            st.metric("Total", f"{stats['participants']['total']}")
 
         with col2:
-            st.metric("참여완료", f"{stats['participants']['completed']}명")
+            st.metric("Completed", f"{stats['participants']['completed']}")
 
         with col3:
-            st.metric("확인됨", f"{stats['participants']['confirmed']}명")
+            st.metric("Confirmed", f"{stats['participants']['confirmed']}")
 
-        # 이벤트별 참여자
-        st.markdown("#### 📋 이벤트별 참여자")
+        st.markdown("#### Participants by Event")
 
         participants_list = db.list_participants()
 
         if participants_list:
-            # 이벤트별 그룹화
             event_stats = {}
 
             for p in participants_list:
@@ -323,26 +307,23 @@ def show():
                 if p["confirmed"] if p and "confirmed" in p else False:
                     event_stats[event_name]["confirmed"] += 1
 
-            # 표시
             for event_name, data in sorted(event_stats.items()):
                 with st.expander(f"🎉 {event_name}"):
                     st.markdown(f"""
-                    **전체**: {data["total"]}명
-                    **참여완료**: {data["completed"]}명
-                    **확인됨**: {data["confirmed"]}명
+                    **Total**: {data["total"]}
+                    **Completed**: {data["completed"]}
+                    **Confirmed**: {data["confirmed"]}
                     """)
 
         else:
-            st.info("참여자 데이터가 없습니다.")
+            st.info("No participant data.")
 
-    # 탭 4: 블랙리스트
     with tab4:
-        st.markdown("### 🚫 블랙리스트 통계")
+        st.markdown("### Blacklist Statistics")
 
-        st.metric("활성 블랙리스트", f"{stats['blacklist']['total']}명")
+        st.metric("Active Blacklist", f"{stats['blacklist']['total']}")
 
-        # 블랙리스트 목록
-        st.markdown("#### 📋 블랙리스트 목록")
+        st.markdown("#### Blacklist List")
 
         blacklist_list = db.list_blacklist(is_active=True)
 
@@ -352,34 +333,39 @@ def show():
                     f"🚫 {bl['commander_id']} - {bl['nickname'] if bl and 'nickname' in bl else 'Unknown'}"
                 ):
                     st.markdown(f"""
-                    **사령관번호**: {bl["commander_id"]}
-                    **닉네임**: {bl["nickname"] if bl and "nickname" in bl else "Unknown"}
-                    **사유**: {bl["reason"] if bl and "reason" in bl else "N/A"}
-                    **추가일시**: {bl["added_at"]}
+                    **Commander ID**: {bl["commander_id"]}
+                    **Nickname**: {bl["nickname"] if bl and "nickname" in bl else "Unknown"}
+                    **Reason**: {bl["reason"] if bl and "reason" in bl else "N/A"}
+                    **Added At**: {bl["added_at"]}
                     """)
 
         else:
-            st.info("활성 블랙리스트가 없습니다.")
+            st.info("No active blacklist entries.")
 
-    # 탭 5: 공지사항
     with tab5:
-        st.markdown("### 📢 공지사항 통계")
+        st.markdown("### Announcement Statistics")
 
         col1, col2 = st.columns(2)
 
         with col1:
-            st.metric("전체 공지사항", f"{stats['announcements']['total']}건")
+            st.metric("Total", f"{stats['announcements']['total']}")
 
         with col2:
-            st.metric("상단 고정", f"{stats['announcements']['pinned']}건")
+            st.metric("Pinned", f"{stats['announcements']['pinned']}")
 
-        # 공지사항 목록
-        st.markdown("#### 📋 공지사항 목록")
+        st.markdown("#### Announcement List")
 
         announcements_list = db.list_announcements(is_active=True)
 
         if announcements_list:
-            category_badge = {"공지": "📢", "안내": "ℹ️", "이벤트": "🎉"}
+            category_badge = {
+                "notice": "📢",
+                "guide": "ℹ️",
+                "event": "🎉",
+                "공지": "📢",
+                "안내": "ℹ️",
+                "이벤트": "🎉",
+            }
 
             for ann in announcements_list:
                 badge = (
@@ -395,26 +381,25 @@ def show():
                     st.markdown(ann["content"])
 
                     st.markdown(f"""
-                    **카테고리**: {ann["category"] if ann and "category" in ann else "공지"}
-                    **작성자**: {ann["author_name"] if ann and "author_name" in ann else "Unknown"}
-                    **작성일시**: {ann["created_at"][:19] if ann and "created_at" in ann and ann["created_at"] else "N/A"}
-                    **수정일시**: {ann["updated_at"] if ann and "updated_at" in ann and ann["updated_at"] else "없음"}
+                    **Category**: {ann["category"] if ann and "category" in ann else "notice"}
+                    **Author**: {ann["author_name"] if ann and "author_name" in ann else "Unknown"}
+                    **Created At**: {ann["created_at"][:19] if ann and "created_at" in ann and ann["created_at"] else "N/A"}
+                    **Updated At**: {ann["updated_at"] if ann and "updated_at" in ann and ann["updated_at"] else "None"}
                     """)
 
         else:
-            st.info("활성 공지사항이 없습니다.")
+            st.info("No active announcements.")
 
     st.markdown("---")
 
-    # 안내 메시지
     st.markdown("""
-    ### 💡 대시보드 안내
+    ### Dashboard Guide
 
-    - **새로고침**: 최신 데이터로 업데이트
-    - **실시간**: 현재 DB 상태 기준
-    - **추이 기간**: 예약 추이 그래프 기간
+    - **Refresh**: Update with latest data
+    - **Real-time**: Based on current DB state
+    - **Trend Period**: Reservation trend graph period
 
-    **액션**:
-    - 마스터는 사용자 실패 횟수를 초기화할 수 있습니다
-    - 각 탭에서 세부 정보를 확인하세요
+    **Actions:**
+    - Masters can reset user failure counts
+    - Check details in each tab
     """)

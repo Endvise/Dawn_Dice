@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-관리자 예약 관리 페이지
+Admin Reservations Management Page
 """
 
 import streamlit as st
@@ -9,90 +9,89 @@ import auth
 
 
 def show():
-    """관리자 예약 관리 페이지 표시"""
-    # 관리자 권한 확인
+    """Show admin reservations management page"""
     auth.require_login(required_role="admin")
 
     user = auth.get_current_user()
     is_master = auth.is_master()
 
-    st.title("📋 예약 관리")
+    st.title("Reservation Management")
     st.markdown("---")
 
-    # 통계
+    # Statistics
     all_reservations = db.list_reservations()
 
     col1, col2, col3, col4, col5 = st.columns(5)
 
     with col1:
-        st.metric("전체 예약", len(all_reservations))
+        st.metric("Total", len(all_reservations))
 
     with col2:
         pending = len([r for r in all_reservations if r["status"] == "pending"])
-        st.metric("대기중", pending)
+        st.metric("Pending", pending)
 
     with col3:
         approved = len([r for r in all_reservations if r["status"] == "approved"])
-        st.metric("승인됨", approved)
+        st.metric("Approved", approved)
 
     with col4:
         rejected = len([r for r in all_reservations if r["status"] == "rejected"])
-        st.metric("거절됨", rejected)
+        st.metric("Rejected", rejected)
 
     with col5:
         blacklisted = len([r for r in all_reservations if r.get("is_blacklisted")])
-        st.metric("블랙리스트", blacklisted)
+        st.metric("Blacklisted", blacklisted)
 
     st.markdown("---")
 
-    # 필터
-    st.markdown("### 🔍 필터")
+    # Filter
+    st.markdown("### Filter")
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
         status_filter = st.selectbox(
-            "상태 필터",
-            ["전체", "대기중", "승인됨", "거절됨", "취소됨"],
+            "Status Filter",
+            ["All", "Pending", "Approved", "Rejected", "Cancelled"],
             key="admin_status_filter",
         )
 
     with col2:
         blacklist_filter = st.selectbox(
-            "블랙리스트 필터",
-            ["전체", "블랙리스트", "정상"],
+            "Blacklist Filter",
+            ["All", "Blacklisted", "Normal"],
             key="admin_blacklist_filter",
         )
 
     with col3:
-        search_term = st.text_input("검색 (닉네임/사령관번호)")
+        search_term = st.text_input("Search (Nickname/Commander ID)")
 
     st.markdown("---")
 
-    # 예약 목록
+    # Reservation list
     filtered_reservations = []
 
     for res in all_reservations:
-        # 상태 필터
-        if status_filter != "전체":
+        # Status filter
+        if status_filter != "All":
             status_map = {
-                "대기중": "pending",
-                "승인됨": "approved",
-                "거절됨": "rejected",
-                "취소됨": "cancelled",
+                "Pending": "pending",
+                "Approved": "approved",
+                "Rejected": "rejected",
+                "Cancelled": "cancelled",
             }
 
             if res["status"] != status_map[status_filter]:
                 continue
 
-        # 블랙리스트 필터
-        if blacklist_filter == "블랙리스트" and not res.get("is_blacklisted"):
+        # Blacklist filter
+        if blacklist_filter == "Blacklisted" and not res.get("is_blacklisted"):
             continue
 
-        if blacklist_filter == "정상" and res.get("is_blacklisted"):
+        if blacklist_filter == "Normal" and res.get("is_blacklisted"):
             continue
 
-        # 검색 필터
+        # Search filter
         if search_term:
             search_lower = search_term.lower()
             if search_lower not in res["nickname"].lower() and search_lower not in str(
@@ -102,11 +101,11 @@ def show():
 
         filtered_reservations.append(res)
 
-    st.markdown(f"### 📋 예약 목록 ({len(filtered_reservations)}건)")
+    st.markdown(f"### Reservations ({len(filtered_reservations)})")
 
     if filtered_reservations:
         for res in filtered_reservations:
-            # 상태 색상
+            # Status color
             status_color = {
                 "pending": "🟡",
                 "approved": "🟢",
@@ -118,10 +117,10 @@ def show():
                 status_color.get(res["status"], "❓") + " " + res["status"].upper()
             )
 
-            # 블랙리스트 표시
-            blacklist_warning = " ⛔ 블랙리스트" if res.get("is_blacklisted") else ""
+            # Blacklist indicator
+            blacklist_warning = " ⛔ Blacklisted" if res.get("is_blacklisted") else ""
 
-            # 예약 카드
+            # Reservation card
             with st.expander(
                 f"{status_label}{blacklist_warning} - {res['created_at'][:19]} (ID: {res['id']})"
             ):
@@ -129,36 +128,36 @@ def show():
 
                 with col1:
                     st.markdown(f"""
-                    **닉네임**: {res["nickname"]}
-                    **사령관번호**: {res["commander_id"]}
-                    **서버**: {res["server"]}
-                    **연맹**: {res["alliance"] if res["alliance"] else "없음"}
-                    **신청자**: {res.get("user_nickname", res.get("user_role", "Unknown"))}
-                    **신청일시**: {res["created_at"]}
-                    **상태**: {res["status"]}
+                    **Nickname**: {res["nickname"]}
+                    **Commander ID**: {res["commander_id"]}
+                    **Server**: {res["server"]}
+                    **Alliance**: {res["alliance"] if res["alliance"] else "None"}
+                    **Applicant**: {res.get("user_nickname", res.get("user_role", "Unknown"))}
+                    **Applied At**: {res["created_at"]}
+                    **Status**: {res["status"]}
                     """)
 
                     if res.get("approved_at"):
-                        st.markdown(f"**승인일시**: {res['approved_at']}")
+                        st.markdown(f"**Approved At**: {res['approved_at']}")
 
                     if res.get("notes"):
-                        st.text(f"**비고**: {res['notes']}")
+                        st.text(f"**Notes**: {res['notes']}")
 
                     if res.get("is_blacklisted"):
                         st.warning(
-                            f"⛔ **블랙리스트**: {res.get('blacklist_reason', 'N/A')}"
+                            f"⛔ **Blacklist**: {res.get('blacklist_reason', 'N/A')}"
                         )
 
                 with col2:
-                    # 액션 버튼
-                    st.markdown("### 액션")
+                    # Action buttons
+                    st.markdown("### Actions")
 
                     if res["status"] == "pending":
                         col_a1, col_a2 = st.columns(2)
 
                         with col_a1:
                             if st.button(
-                                "승인",
+                                "Approve",
                                 key=f"approve_{res['id']}",
                                 type="primary",
                                 use_container_width=True,
@@ -167,14 +166,14 @@ def show():
                                     db.update_reservation_status(
                                         res["id"], "approved", user["id"]
                                     )
-                                    st.success("✓ 승인되었습니다.")
+                                    st.success("Approved.")
                                     st.rerun()
                                 except Exception as e:
-                                    st.error(f"승인 중 오류가 발생했습니다: {e}")
+                                    st.error(f"Error approving: {e}")
 
                         with col_a2:
                             if st.button(
-                                "거절",
+                                "Reject",
                                 key=f"reject_{res['id']}",
                                 use_container_width=True,
                             ):
@@ -182,52 +181,52 @@ def show():
                                     db.update_reservation_status(
                                         res["id"], "rejected", user["id"]
                                     )
-                                    st.success("✓ 거절되었습니다.")
+                                    st.success("Rejected.")
                                     st.rerun()
                                 except Exception as e:
-                                    st.error(f"거절 중 오류가 발생했습니다: {e}")
+                                    st.error(f"Error rejecting: {e}")
 
                     elif res["status"] == "approved":
                         if st.button(
-                            "승인 취소",
+                            "Cancel Approval",
                             key=f"cancel_approval_{res['id']}",
                             use_container_width=True,
                         ):
                             try:
                                 db.update_reservation_status(res["id"], "pending", None)
-                                st.success("✓ 승인이 취소되었습니다.")
+                                st.success("Approval cancelled.")
                                 st.rerun()
                             except Exception as e:
-                                st.error(f"취소 중 오류가 발생했습니다: {e}")
+                                st.error(f"Error cancelling: {e}")
 
-                    # 삭제 버튼 (마스터만)
+                    # Delete button (master only)
                     if is_master:
                         if st.button(
-                            "삭제",
+                            "Delete",
                             key=f"delete_{res['id']}",
                             type="secondary",
                             use_container_width=True,
                         ):
-                            if st.confirm("정말 이 예약을 삭제하시겠습니까?"):
+                            if st.confirm("Delete this reservation?"):
                                 try:
                                     db.delete_reservation(res["id"])
-                                    st.success("✓ 삭제되었습니다.")
+                                    st.success("Deleted.")
                                     st.rerun()
                                 except Exception as e:
-                                    st.error(f"삭제 중 오류가 발생했습니다: {e}")
+                                    st.error(f"Error deleting: {e}")
 
-                    # 블랙리스트 추가 버튼
+                    # Add to blacklist button
                     if not res.get("is_blacklisted"):
                         if st.button(
-                            "블랙리스트 추가",
+                            "Add to Blacklist",
                             key=f"blacklist_{res['id']}",
                             use_container_width=True,
                         ):
                             reason = st.text_input(
-                                "블랙리스트 사유", key=f"reason_{res['id']}"
+                                "Blacklist Reason", key=f"reason_{res['id']}"
                             )
                             if st.button(
-                                "추가 확인",
+                                "Confirm Add",
                                 key=f"add_blacklist_{res['id']}",
                                 use_container_width=True,
                             ):
@@ -235,27 +234,27 @@ def show():
                                     db.add_to_blacklist(
                                         commander_id=res["commander_id"],
                                         nickname=res["nickname"],
-                                        reason=reason if reason else "관리자 추가",
+                                        reason=reason if reason else "Added by admin",
                                         added_by=user["id"],
                                     )
-                                    st.success("✓ 블랙리스트에 추가되었습니다.")
+                                    st.success("Added to blacklist.")
                                     st.rerun()
                                 except Exception as e:
-                                    st.error(f"추가 중 오류가 발생했습니다: {e}")
+                                    st.error(f"Error adding: {e}")
 
     else:
-        st.info("표시할 예약이 없습니다.")
+        st.info("No reservations to display.")
 
     st.markdown("---")
 
-    # 안내 메시지
+    # Guide message
     st.markdown("""
-    ### 💡 관리자 안내
+    ### Admin Guide
 
-    - **대기중**: 승인 또는 거절 가능
-    - **승인됨**: 승인 취소 가능
-    - **거절됨/취소됨**: 상태 변경 불가
-    - **블랙리스트**: 자동으로 표시됨
+    - **Pending**: Can approve or reject
+    - **Approved**: Can cancel approval
+    - **Rejected/Cancelled**: Cannot change status
+    - **Blacklist**: Automatically displayed
 
-    마스터 계정만 예약을 삭제할 수 있습니다.
+    Only master accounts can delete reservations.
     """)

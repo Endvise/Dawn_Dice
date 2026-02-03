@@ -19,9 +19,6 @@ def main():
         initial_sidebar_state="expanded",
     )
 
-    # App initialization
-    db.init_app()
-
     # Session initialization
     auth.init_session_state()
 

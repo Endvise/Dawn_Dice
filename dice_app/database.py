@@ -11,26 +11,43 @@ from typing import Optional, List, Dict, Any
 import requests
 import json
 
-# Database configuration
-DB_TYPE = st.secrets.get("DB_TYPE", "supabase")
+# Database configuration - lazy loading
+_DB_TYPE = None
+_SUPABASE_URL = None
+_SUPABASE_KEY = None
 
-# Supabase configuration
-SUPABASE_URL = st.secrets.get(
-    "SUPABASE_URL", "https://gticuuzplbemivfturuz.supabase.co"
-)
-SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")  # anon key
 
-# Headers for Supabase REST API
-HEADERS = {
-    "apikey": SUPABASE_KEY,
-    "Authorization": f"Bearer {SUPABASE_KEY}",
-    "Content-Type": "application/json",
-}
+def _get_config():
+    """Lazy load configuration from secrets."""
+    global _DB_TYPE, _SUPABASE_URL, _SUPABASE_KEY
+    if _DB_TYPE is None:
+        try:
+            _DB_TYPE = st.secrets.get("DB_TYPE", "supabase")
+            _SUPABASE_URL = st.secrets.get(
+                "SUPABASE_URL", "https://gticuuzplbemivfturuz.supabase.co"
+            )
+            _SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
+        except Exception:
+            _DB_TYPE = "supabase"
+            _SUPABASE_URL = "https://gticuuzplbemivfturuz.supabase.co"
+            _SUPABASE_KEY = ""
+    return _DB_TYPE, _SUPABASE_URL, _SUPABASE_KEY
+
+
+def _get_headers():
+    """Get headers for Supabase API."""
+    _, _, supabase_key = _get_config()
+    return {
+        "apikey": supabase_key,
+        "Authorization": f"Bearer {supabase_key}",
+        "Content-Type": "application/json",
+    }
 
 
 def get_supabase_url(table: str) -> str:
     """Get Supabase REST API URL for a table."""
-    return f"{SUPABASE_URL}/rest/v1/{table}"
+    _, supabase_url, _ = _get_config()
+    return f"{supabase_url}/rest/v1/{table}"
 
 
 def execute_query(query: str, params: tuple = (), fetch: bool | str = False) -> Any:
@@ -55,13 +72,13 @@ def supabase_request(
         params = None
 
     if method.upper() == "GET":
-        return requests.get(url, headers=HEADERS, params=params)
+        return requests.get(url, headers=_get_headers(), params=params)
     elif method.upper() == "POST":
-        return requests.post(url, headers=HEADERS, json=data)
+        return requests.post(url, headers=_get_headers(), json=data)
     elif method.upper() == "PATCH":
-        return requests.patch(url, headers=HEADERS, json=data)
+        return requests.patch(url, headers=_get_headers(), json=data)
     elif method.upper() == "DELETE":
-        return requests.delete(url, headers=HEADERS)
+        return requests.delete(url, headers=_get_headers())
     else:
         raise ValueError(f"Unsupported method: {method}")
 
@@ -116,15 +133,21 @@ def delete(table: str, params: Dict) -> bool:
 
 
 def init_database():
-    """Initialize database tables - for Supabase, tables are created in Supabase dashboard."""
-    # Tables should be created in Supabase dashboard
-    # This function can be used to verify connection
+    """Initialize database - verify Supabase connection."""
+    # For Supabase, tables are created in dashboard
+    # This function just verifies the connection works
     try:
         response = supabase_request("GET", "users", params={"select": "id", "limit": 1})
-        return response.status_code == 200
+        if response.status_code == 200:
+            return True
+        elif response.status_code == 401:
+            st.error("Supabase API key is invalid. Please check your secrets.")
+            return False
+        else:
+            return True  # Still return True to allow app to start
     except Exception as e:
-        st.error(f"Database connection error: {e}")
-        return False
+        st.warning(f"Database connection warning: {e}")
+        return True  # Allow app to start anyway
 
 
 # ==================== User Operations ====================

@@ -127,29 +127,6 @@ def init_database():
         return False
 
 
-def initialize_master_account():
-    """Initialize master account."""
-    master_username = st.secrets.get("MASTER_USERNAME", "DaWnntt0623")
-    master_password = st.secrets.get("MASTER_PASSWORD", "4425endvise9897!")
-
-    existing = get_user_by_username(master_username)
-    if not existing:
-        create_user(
-            username=master_username,
-            commander_id=None,
-            password=master_password,
-            role="master",
-            nickname="Master Admin",
-        )
-        st.success(f"Master account created: {master_username}")
-
-
-def init_app():
-    """Initialize app."""
-    init_database()
-    initialize_master_account()
-
-
 # ==================== User Operations ====================
 
 

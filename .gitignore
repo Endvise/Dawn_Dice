@@ -57,6 +57,22 @@ coverage.xml
 local_settings.py
 db.sqlite3
 
+# Database backup files
+*.db
+*.sqlite
+*.sqlite3
+*.bak
+*.backup
+*.old
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
 # Flask stuff:
 instance/
 .webassets-cache
@@ -97,6 +113,19 @@ venv.bak/
 
 # Streamlit secrets - NEVER commit this!
 .streamlit/secrets.toml
+
+# Environment files - NEVER commit sensitive info!
+.env
+.env.local
+.env.*.local
+
+# API Keys and credentials - NEVER commit!
+*apikey*
+*secret*
+*credential*
+sb_*
+sk-*
+pk-*
 
 # Spyder project settings
 .spyderproject

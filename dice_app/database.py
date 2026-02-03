@@ -45,11 +45,14 @@ def supabase_request(
     """Make a request to Supabase REST API."""
     url = get_supabase_url(table)
 
-    if params:
-        query_params = []
+    # Build query string for GET requests
+    if method.upper() == "GET" and params:
+        query_parts = []
         for key, value in params.items():
-            query_params.append(f"{key}={value}")
-        url += "?" + "&".join(query_params)
+            query_parts.append(f"{key}={value}")
+        url += "?" + "&".join(query_parts)
+        # Use empty params for requests since we already added to URL
+        params = None
 
     if method.upper() == "GET":
         return requests.get(url, headers=HEADERS, params=params)

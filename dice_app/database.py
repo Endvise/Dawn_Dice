@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Database Management Module - Supabase REST API
+Database Management Module - Supabase REST API + Auth
 """
 
 import streamlit as st
@@ -10,11 +10,13 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 import requests
 import json
+from supabase import create_client, Client
 
 # Database configuration - lazy loading
 _DB_TYPE = None
 _SUPABASE_URL = None
 _SUPABASE_KEY = None
+_supabase_client: Optional[Client] = None
 
 
 def _get_config():
@@ -32,6 +34,19 @@ def _get_config():
             _SUPABASE_URL = "https://gticuuzplbemivfturuz.supabase.co"
             _SUPABASE_KEY = ""
     return _DB_TYPE, _SUPABASE_URL, _SUPABASE_KEY
+
+
+def get_supabase_client() -> Optional[Client]:
+    """Get or create Supabase client instance."""
+    global _supabase_client
+    if _supabase_client is None:
+        try:
+            _, supabase_url, supabase_key = _get_config()
+            if supabase_key:
+                _supabase_client = create_client(supabase_url, supabase_key)
+        except Exception:
+            pass
+    return _supabase_client
 
 
 def _get_headers():
@@ -52,7 +67,6 @@ def get_supabase_url(table: str) -> str:
 
 def execute_query(query: str, params: tuple = (), fetch: bool | str = False) -> Any:
     """Execute query - for Supabase, this is handled by specific functions below."""
-    # This is kept for compatibility - actual operations use specific functions
     pass
 
 
@@ -62,13 +76,11 @@ def supabase_request(
     """Make a request to Supabase REST API."""
     url = get_supabase_url(table)
 
-    # Build query string for GET requests
     if method.upper() == "GET" and params:
         query_parts = []
         for key, value in params.items():
             query_parts.append(f"{key}={value}")
         url += "?" + "&".join(query_parts)
-        # Use empty params for requests since we already added to URL
         params = None
 
     if method.upper() == "GET":
@@ -105,11 +117,8 @@ def insert(table: str, data: Dict) -> int:
     """Insert a record and return the ID."""
     response = supabase_request("POST", table, data=data)
     if response.status_code in [200, 201]:
-        # Return created record's id from Location header or body
         if response.headers.get("Location"):
-            # Extract id from location URL
             location = response.headers["Location"]
-            # Or from response body
         try:
             return response.json().get("id", 0)
         except:
@@ -134,8 +143,6 @@ def delete(table: str, params: Dict) -> bool:
 
 def init_database():
     """Initialize database - verify Supabase connection."""
-    # For Supabase, tables are created in dashboard
-    # This function just verifies the connection works
     try:
         response = supabase_request("GET", "users", params={"select": "id", "limit": 1})
         if response.status_code == 200:
@@ -144,10 +151,10 @@ def init_database():
             st.error("Supabase API key is invalid. Please check your secrets.")
             return False
         else:
-            return True  # Still return True to allow app to start
+            return True
     except Exception as e:
         st.warning(f"Database connection warning: {e}")
-        return True  # Allow app to start anyway
+        return True
 
 
 # ==================== User Operations ====================
@@ -167,7 +174,7 @@ def verify_password(password: str, hashed: str) -> bool:
 
 def create_user(
     username: Optional[str],
-    commander_id: Optional[str],
+    commander_number: Optional[str],
     password: str,
     role: str = "user",
     nickname: Optional[str] = None,
@@ -179,7 +186,7 @@ def create_user(
 
     data = {
         "username": username,
-        "commander_id": commander_id,
+        "commander_number": commander_number,
         "password_hash": password_hash,
         "role": role,
         "nickname": nickname,
@@ -196,16 +203,21 @@ def get_user_by_username(username: str) -> Optional[Dict[str, Any]]:
 
 
 def get_user_by_commander_id(commander_id: str) -> Optional[Dict[str, Any]]:
-    """Get user by commander ID."""
-    return fetch_one("users", {"commander_id": f"eq.{commander_id}"})
+    """Get user by commander ID (for backwards compatibility)."""
+    return fetch_one("users", {"commander_number": f"eq.{commander_id}"})
 
 
-def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
-    """Get user by ID."""
+def get_user_by_commander_number(commander_number: str) -> Optional[Dict[str, Any]]:
+    """Get user by commander number."""
+    return fetch_one("users", {"commander_number": f"eq.{commander_number}"})
+
+
+def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
+    """Get user by ID (UUID)."""
     return fetch_one("users", {"id": f"eq.{user_id}"})
 
 
-def update_user(user_id: int, **kwargs) -> bool:
+def update_user(user_id: str, **kwargs) -> bool:
     """Update user information."""
     return update("users", kwargs, {"id": f"eq.{user_id}"})
 
@@ -222,7 +234,7 @@ def list_users(
     return fetch_all("users", params)
 
 
-def delete_user(user_id: int) -> bool:
+def delete_user(user_id: str) -> bool:
     """Delete user."""
     return delete("users", {"id": f"eq.{user_id}"})
 
@@ -234,17 +246,16 @@ MAX_PARTICIPANTS = 180
 
 
 def create_reservation(
-    user_id: int,
+    user_id: str,
     nickname: str,
-    commander_id: str,
+    commander_number: str,
     server: str,
     alliance: Optional[str] = None,
     notes: Optional[str] = None,
 ) -> int:
     """Create reservation."""
-    blacklisted = check_blacklist(commander_id)
+    blacklisted = check_blacklist(commander_number)
 
-    # Check capacity
     participants = fetch_all("participants", {"completed": f"eq.1"})
     participants_count = len(participants)
 
@@ -270,7 +281,7 @@ def create_reservation(
     data = {
         "user_id": user_id,
         "nickname": nickname,
-        "commander_id": commander_id,
+        "commander_number": commander_number,
         "server": server,
         "alliance": alliance,
         "notes": notes,
@@ -284,14 +295,14 @@ def create_reservation(
     return insert("reservations", data)
 
 
-def get_reservation_by_id(reservation_id: int) -> Optional[Dict[str, Any]]:
+def get_reservation_by_id(reservation_id: str) -> Optional[Dict[str, Any]]:
     """Get reservation by ID."""
     return fetch_one("reservations", {"id": f"eq.{reservation_id}"})
 
 
 def list_reservations(
     status: Optional[str] = None,
-    user_id: Optional[int] = None,
+    user_id: Optional[str] = None,
     is_blacklisted: Optional[bool] = None,
 ) -> List[Dict[str, Any]]:
     """List reservations."""
@@ -306,7 +317,7 @@ def list_reservations(
 
 
 def update_reservation_status(
-    reservation_id: int, status: str, approved_by: int
+    reservation_id: str, status: str, approved_by: str
 ) -> bool:
     """Update reservation status."""
     now = datetime.now().isoformat()
@@ -333,14 +344,14 @@ def delete_reservation(reservation_id: int) -> bool:
 
 
 def add_to_blacklist(
-    commander_id: str,
+    commander_number: str,
     nickname: Optional[str] = None,
     reason: Optional[str] = None,
-    added_by: Optional[int] = None,
+    added_by: Optional[str] = None,
 ) -> int:
     """Add to blacklist."""
     data = {
-        "commander_id": commander_id,
+        "commander_number": commander_number,
         "nickname": nickname,
         "reason": reason,
         "added_by": added_by,
@@ -348,16 +359,15 @@ def add_to_blacklist(
     return insert("blacklist", data)
 
 
-def check_blacklist(commander_id: str) -> Optional[Dict[str, Any]]:
+def check_blacklist(commander_number: str) -> Optional[Dict[str, Any]]:
     """Check blacklist (local + Google Sheets)."""
     result = fetch_one(
-        "blacklist", {"commander_id": f"eq.{commander_id}", "is_active": "eq.1"}
+        "blacklist", {"commander_number": f"eq.{commander_number}", "is_active": "eq.1"}
     )
 
     if result:
         return result
 
-    # Check Google Sheets
     try:
         import requests as req
 
@@ -383,12 +393,13 @@ def check_blacklist(commander_id: str) -> Optional[Dict[str, Any]]:
                 if df.empty:
                     return None
 
-                commander_id_str = str(commander_id)
+                commander_number_str = str(commander_number)
 
                 for col in df.columns:
                     col_lower = str(col).lower()
                     if (
                         col_lower == "id"
+                        or col_lower == "commander_number"
                         or col_lower == "commander_id"
                         or col_lower == "사령관번호"
                         or (
@@ -401,12 +412,12 @@ def check_blacklist(commander_id: str) -> Optional[Dict[str, Any]]:
                     ):
                         try:
                             col_data = df[col].astype(str).str.strip()
-                            matched_rows = df[col_data == commander_id_str]
+                            matched_rows = df[col_data == commander_number_str]
 
                             if not matched_rows.empty:
                                 idx = matched_rows.index[0]
                                 return {
-                                    "commander_id": commander_id,
+                                    "commander_number": commander_number,
                                     "nickname": df.iloc[idx].get("nickname", ""),
                                     "reason": "Google Sheets blacklist",
                                     "is_active": 1,
@@ -420,9 +431,11 @@ def check_blacklist(commander_id: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def remove_from_blacklist(commander_id: str) -> bool:
+def remove_from_blacklist(commander_number: str) -> bool:
     """Remove from blacklist."""
-    return update("blacklist", {"is_active": 0}, {"commander_id": f"eq.{commander_id}"})
+    return update(
+        "blacklist", {"is_active": 0}, {"commander_number": f"eq.{commander_number}"}
+    )
 
 
 def list_blacklist(is_active: bool = True) -> List[Dict[str, Any]]:
@@ -446,7 +459,7 @@ def list_servers(is_active: bool = True) -> List[Dict[str, Any]]:
 # ==================== Alliance Operations ====================
 
 
-def add_alliance(alliance_name: str, server_id: Optional[int] = None) -> int:
+def add_alliance(alliance_name: str, server_id: Optional[str] = None) -> int:
     """Add alliance."""
     return insert("alliances", {"alliance_name": alliance_name, "server_id": server_id})
 
@@ -464,7 +477,7 @@ def create_announcement(
     content: str,
     category: str = "notice",
     is_pinned: bool = False,
-    created_by: Optional[int] = None,
+    created_by: Optional[str] = None,
 ) -> int:
     """Create announcement."""
     return insert(
@@ -479,7 +492,7 @@ def create_announcement(
     )
 
 
-def get_announcement_by_id(announcement_id: int) -> Optional[Dict[str, Any]]:
+def get_announcement_by_id(announcement_id: str) -> Optional[Dict[str, Any]]:
     """Get announcement by ID."""
     return fetch_one("announcements", {"id": f"eq.{announcement_id}"})
 
@@ -498,7 +511,7 @@ def list_announcements(
 
 
 def update_announcement(
-    announcement_id: int,
+    announcement_id: str,
     title: Optional[str] = None,
     content: Optional[str] = None,
     category: Optional[str] = None,
@@ -524,7 +537,7 @@ def update_announcement(
     return False
 
 
-def delete_announcement(announcement_id: int) -> bool:
+def delete_announcement(announcement_id: str) -> bool:
     """Delete announcement."""
     return delete("announcements", {"id": f"eq.{announcement_id}"})
 
@@ -557,12 +570,12 @@ def list_participants(event_name: Optional[str] = None) -> List[Dict[str, Any]]:
     return fetch_all("participants")
 
 
-def update_participant(participant_id: int, **kwargs) -> bool:
+def update_participant(participant_id: str, **kwargs) -> bool:
     """Update participant."""
     return update("participants", kwargs, {"id": f"eq.{participant_id}"})
 
 
-def delete_participant(participant_id: int) -> bool:
+def delete_participant(participant_id: str) -> bool:
     """Delete participant."""
     return delete("participants", {"id": f"eq.{participant_id}"})
 
@@ -575,12 +588,11 @@ def create_session(
     session_name: str,
     session_date,
     max_participants: int,
-    created_by: int,
+    created_by: str,
     reservation_open_time: Optional[str] = None,
     reservation_close_time: Optional[str] = None,
 ):
     """Create session."""
-    # Deactivate all existing sessions
     update("event_sessions", {"is_active": 0}, {"is_active": "eq.1"})
 
     insert(
@@ -616,7 +628,7 @@ def get_next_session_number():
     return 1
 
 
-def get_participant_count(session_id: int) -> int:
+def get_participant_count(session_id: str) -> int:
     """Get participant count for session."""
     session = fetch_one("event_sessions", {"id": f"eq.{session_id}"})
     if not session:
@@ -629,18 +641,18 @@ def get_participant_count(session_id: int) -> int:
     return len(participants)
 
 
-def get_approved_reservation_count(session_id: int) -> int:
+def get_approved_reservation_count(session_id: str) -> int:
     """Get approved reservation count for session."""
     reservations = fetch_all("reservations", {"status": "eq.approved"})
     return len(reservations)
 
 
-def get_session_reservations(session_id: int):
+def get_session_reservations(session_id: str):
     """Get reservations for session."""
     return fetch_all("reservations")
 
 
-def get_session_participants(session_id: int):
+def get_session_participants(session_id: str):
     """Get participants for session."""
     session = fetch_one("event_sessions", {"id": f"eq.{session_id}"})
     if not session:
@@ -650,7 +662,7 @@ def get_session_participants(session_id: int):
     return fetch_all("participants", {"event_name": f"eq.{event_name}"})
 
 
-def update_session_active(session_id: int, is_active: bool):
+def update_session_active(session_id: str, is_active: bool):
     """Update session active status."""
     return update(
         "event_sessions",
@@ -659,6 +671,89 @@ def update_session_active(session_id: int, is_active: bool):
     )
 
 
-def delete_session(session_id: int):
+def delete_session(session_id: str):
     """Delete session."""
     return delete("event_sessions", {"id": f"eq.{session_id}"})
+
+
+# ==================== Supabase Authentication ====================
+
+
+def supabase_sign_up(email: str, password: str) -> tuple[bool, str, Optional[str]]:
+    """Sign up user with Supabase Auth. Returns: (success, message, user_id)"""
+    client = get_supabase_client()
+    if not client:
+        return False, "Supabase client not initialized", None
+
+    try:
+        response = client.auth.sign_up({"email": email, "password": password})
+        if response.user:
+            return True, "Sign up successful!", response.user.id
+        return False, "Sign up failed", None
+    except Exception as e:
+        return False, f"Sign up error: {str(e)}", None
+
+
+def supabase_sign_in(email: str, password: str) -> tuple[bool, str, Optional[str]]:
+    """Sign in user with Supabase Auth. Returns: (success, message, access_token)"""
+    client = get_supabase_client()
+    if not client:
+        return False, "Supabase client not initialized", None
+
+    try:
+        response = client.auth.sign_in_with_password(
+            {"email": email, "password": password}
+        )
+        if response.session:
+            return True, "Login successful!", response.session.access_token
+        return False, "Login failed", None
+    except Exception as e:
+        return False, f"Login error: {str(e)}", None
+
+
+def supabase_sign_out() -> bool:
+    """Sign out current user."""
+    client = get_supabase_client()
+    if not client:
+        return False
+    try:
+        client.auth.sign_out()
+        return True
+    except Exception:
+        return False
+
+
+def supabase_get_user(access_token: str) -> tuple[bool, Optional[Dict[str, Any]]]:
+    """Get user info from access token. Returns: (success, user_data)"""
+    client = get_supabase_client()
+    if not client:
+        return False, None
+
+    try:
+        client.auth.set_session(access_token)
+        user = client.auth.get_user()
+        if user:
+            return True, {
+                "id": user.user.id,
+                "email": user.user.email,
+                "created_at": user.user.created_at,
+            }
+        return False, None
+    except Exception:
+        return False, None
+
+
+def supabase_verify_session(access_token: str) -> tuple[bool, Optional[str]]:
+    """Verify if access token is valid. Returns: (is_valid, user_id)"""
+    client = get_supabase_client()
+    if not client:
+        return False, None
+
+    try:
+        client.auth.set_session(access_token)
+        user = client.auth.get_user()
+        if user:
+            return True, user.user.id
+        return False, None
+    except Exception:
+        return False, None

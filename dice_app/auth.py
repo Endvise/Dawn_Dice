@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Authentication Management Module
+Authentication Management Module - Supabase Auth Integration
 """
 
 import streamlit as st
@@ -17,6 +17,7 @@ SESSION_KEYS = {
     "role": "dice_role",
     "nickname": "dice_nickname",
     "login_time": "dice_login_time",
+    "access_token": "dice_access_token",  # Supabase access token
 }
 
 
@@ -29,42 +30,60 @@ def init_session_state():
 
 def login(username: str, password: str) -> tuple[bool, str]:
     """
-    Attempt login.
+    Attempt login with Supabase Auth.
+    Falls back to custom auth if Supabase is not configured.
     Returns: (success, message)
     """
-    # Find user
+    # Try Supabase Auth first
+    use_supabase_auth = st.secrets.get("USE_SUPABASE_AUTH", True)
+
+    if use_supabase_auth:
+        # For Supabase Auth, username should be email
+        success, message, access_token = db.supabase_sign_in(username, password)
+
+        if success and access_token:
+            # Get user info from Supabase
+            user_data_success, user_data = db.supabase_get_user(access_token)
+
+            if user_data_success and user_data:
+                # Find user in local database by email/supabase_id
+                # or create a minimal session
+                st.session_state[SESSION_KEYS["authenticated"]] = True
+                st.session_state[SESSION_KEYS["user_id"]] = user_data.get("id")
+                st.session_state[SESSION_KEYS["username"]] = username
+                st.session_state[SESSION_KEYS["role"]] = "user"  # Default role
+                st.session_state[SESSION_KEYS["nickname"]] = ""
+                st.session_state[SESSION_KEYS["login_time"]] = datetime.now()
+                st.session_state[SESSION_KEYS["access_token"]] = access_token
+
+                return True, "Login successful!"
+
+        # If Supabase auth fails, try fallback to custom auth
+        st.warning("Supabase auth failed, trying legacy authentication...")
+
+    # Fallback to custom database authentication
     user = db.get_user_by_username(username)
 
     if not user:
-        # Also try commander ID
         user = db.get_user_by_commander_id(username)
 
     if not user:
         return False, "User not found."
 
-    # Check if account is disabled
     if not user.get("is_active"):
         return False, "Account is disabled."
 
-    # Check login attempts
     max_attempts = st.secrets.get("MAX_LOGIN_ATTEMPTS", 5)
     if user.get("failed_attempts", 0) >= max_attempts:
         return False, "Too many failed login attempts. Contact admin."
 
-    # Verify password
     if not db.verify_password(password, user["password_hash"]):
-        # Increase failed attempts
         db.update_user(user["id"], failed_attempts=user.get("failed_attempts", 0) + 1)
         remaining = max_attempts - user.get("failed_attempts", 0) - 1
-        return (
-            False,
-            f"Invalid password. ({remaining} attempts remaining)",
-        )
+        return False, f"Invalid password. ({remaining} attempts remaining)"
 
-    # Login successful
     db.update_user(user["id"], failed_attempts=0, last_login=datetime.now())
 
-    # Set session state
     st.session_state[SESSION_KEYS["authenticated"]] = True
     st.session_state[SESSION_KEYS["user_id"]] = user["id"]
     st.session_state[SESSION_KEYS["username"]] = user.get("username") or user.get(
@@ -73,6 +92,9 @@ def login(username: str, password: str) -> tuple[bool, str]:
     st.session_state[SESSION_KEYS["role"]] = user["role"]
     st.session_state[SESSION_KEYS["nickname"]] = user.get("nickname", "")
     st.session_state[SESSION_KEYS["login_time"]] = datetime.now()
+    st.session_state[SESSION_KEYS["access_token"]] = (
+        None  # No Supabase token for legacy auth
+    )
 
     return True, "Login successful!"
 

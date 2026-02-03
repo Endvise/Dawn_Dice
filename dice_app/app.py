@@ -89,20 +89,6 @@ def main():
 
     # 메인 컨텐츠 영역
     if auth.is_authenticated():
-        # 일반 사용자/관리자/마스터 공통 페이지
-        if page == "🏠 홈":
-            import views.home
-
-            views.home.show()
-        elif page == "📝 예약 신청":
-            import views.reservation
-
-            views.reservation.show()
-        elif page == "📊 내 예약 현황":
-            import views.my_reservations
-
-            views.my_reservations.show()
-
         # 페이지별 라우팅
         if page == "🏠 홈":
             import views.home

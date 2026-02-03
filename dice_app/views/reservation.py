@@ -63,13 +63,19 @@ def show():
             "SELECT COUNT(*) as count FROM participants WHERE completed = 1",
             fetch="one",
         )
-        participants_count = result.get("count", 0) if result else 0
+        try:
+            participants_count = result["count"] if result and "count" in result else 0
+        except (TypeError, KeyError):
+            participants_count = 0
 
         result = execute_query(
             "SELECT COUNT(*) as count FROM reservations WHERE status = 'approved'",
             fetch="one",
         )
-        approved_count = result.get("count", 0) if result else 0
+        try:
+            approved_count = result["count"] if result and "count" in result else 0
+        except (TypeError, KeyError):
+            approved_count = 0
 
         total_count = participants_count + approved_count
 

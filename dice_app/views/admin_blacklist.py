@@ -37,9 +37,85 @@ def show():
         ["Blacklist List", "Add to Blacklist", "Upload from File", "Inactive List"]
     )
 
-    # Tab 1: Blacklist list
+    # Tab 1: Blacklist list with editing
     with tab1:
         st.markdown("### Active Blacklist")
+
+        # Edit mode check
+        edit_id = st.session_state.get("edit_blacklist_id")
+
+        if edit_id:
+            # Show edit form
+            blacklist_entry = db.fetch_one("blacklist", {"id": f"eq.{edit_id}"})
+            if blacklist_entry:
+                st.markdown("### Edit Blacklist Entry")
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    commander_id = st.text_input(
+                        "Commander ID",
+                        value=blacklist_entry.get("commander_id", ""),
+                    )
+                    nickname = st.text_input(
+                        "Nickname",
+                        value=blacklist_entry.get("nickname", "") or "",
+                    )
+                    reason = st.text_area(
+                        "Reason",
+                        value=blacklist_entry.get("reason", "") or "",
+                        height=100,
+                    )
+
+                with col2:
+                    st.markdown("### Guide")
+                    st.markdown("""
+                    - **Commander ID**: 10-digit number (required)
+                    - **Nickname**: Optional
+                    - **Reason**: Reason for blacklist (required)
+                    """)
+
+                st.markdown("---")
+
+                col_btn1, col_btn2, col_btn3 = st.columns(3)
+
+                with col_btn1:
+                    if st.button(
+                        "Save Changes", type="primary", use_container_width=True
+                    ):
+                        try:
+                            db.update(
+                                "blacklist",
+                                {
+                                    "commander_id": commander_id,
+                                    "nickname": nickname if nickname else None,
+                                    "reason": reason if reason else None,
+                                },
+                                {"id": f"eq.{edit_id}"},
+                            )
+                            st.success("Updated successfully!")
+                            st.session_state["edit_blacklist_id"] = None
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+
+                with col_btn2:
+                    if st.button("Cancel", use_container_width=True):
+                        st.session_state["edit_blacklist_id"] = None
+                        st.rerun()
+
+                with col_btn3:
+                    if st.button(
+                        "Deactivate", type="secondary", use_container_width=True
+                    ):
+                        try:
+                            db.remove_from_blacklist(commander_id)
+                            st.success("Deactivated!")
+                            st.session_state["edit_blacklist_id"] = None
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+
+                st.markdown("---")
 
         if local_blacklist:
             for bl in local_blacklist:
@@ -65,6 +141,14 @@ def show():
 
                     with col2:
                         st.markdown("### Actions")
+
+                        if st.button(
+                            "Edit",
+                            key=f"edit_{bl['id']}",
+                            use_container_width=True,
+                        ):
+                            st.session_state["edit_blacklist_id"] = bl["id"]
+                            st.rerun()
 
                         if st.button(
                             "Deactivate",
@@ -438,55 +522,44 @@ def show():
                     **Added At**: {bl["added_at"]}
                     """)
 
-                    if st.button(
-                        "Restore", key=f"restore_{bl['id']}", use_container_width=True
-                    ):
-                        try:
-                            from database import execute_query
+                    col_btn1, col_btn2 = st.columns(2)
 
-                            execute_query(
-                                """
-                                UPDATE blacklist SET is_active = 1 WHERE id = ?
-                            """,
-                                (bl["id"],),
-                            )
-
-                            execute_query(
-                                """
-                                UPDATE reservations SET is_blacklisted = 0, blacklist_reason = NULL
-                                WHERE commander_id = ?
-                            """,
-                                (bl["commander_id"],),
-                            )
-
-                            st.success("Blacklist restored.")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Error restoring: {e}")
-
-                    if is_master:
+                    with col_btn1:
                         if st.button(
-                            "Delete Permanently",
-                            key=f"permanent_delete_{bl['id']}",
-                            type="secondary",
+                            "Restore",
+                            key=f"restore_{bl['id']}",
                             use_container_width=True,
                         ):
-                            confirm_delete = st.checkbox(
-                                "I understand this cannot be undone",
-                                key=f"confirm_permanent_{bl['id']}",
-                            )
-                            if confirm_delete:
-                                try:
-                                    from database import execute_query
+                            try:
+                                db.update(
+                                    "blacklist",
+                                    {"is_active": 1},
+                                    {"id": f"eq.{bl['id']}"},
+                                )
+                                st.success("Blacklist restored.")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error restoring: {e}")
 
-                                    execute_query(
-                                        "DELETE FROM blacklist WHERE id = ?",
-                                        (bl["id"],),
-                                    )
-                                    st.success("Permanently deleted.")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Error deleting: {e}")
+                    with col_btn2:
+                        if is_master:
+                            if st.button(
+                                "Delete Permanently",
+                                key=f"permanent_delete_{bl['id']}",
+                                type="secondary",
+                                use_container_width=True,
+                            ):
+                                confirm_delete = st.checkbox(
+                                    "I understand this cannot be undone",
+                                    key=f"confirm_permanent_{bl['id']}",
+                                )
+                                if confirm_delete:
+                                    try:
+                                        db.delete("blacklist", {"id": f"eq.{bl['id']}"})
+                                        st.success("Permanently deleted.")
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Error deleting: {e}")
         else:
             st.info("No inactive blacklist entries.")
 

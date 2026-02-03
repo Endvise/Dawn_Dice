@@ -6,7 +6,6 @@ Admin Participants Management Page
 import streamlit as st
 import database as db
 import auth
-from database import execute_query
 from utils import (
     map_excel_columns,
     extract_row_data,
@@ -46,11 +45,11 @@ def show():
     st.markdown("---")
 
     # Tabs
-    tab1, tab2, tab3, tab4 = st.tabs(
-        ["Participants List", "Add Participant", "Import Excel", "Sheets Integration"]
+    tab1, tab2, tab3 = st.tabs(
+        ["Participants List", "Add Participant", "Import Excel/CSV"]
     )
 
-    # Tab 1: Participants list
+    # Tab 1: Participants list with editing
     with tab1:
         st.markdown("### Participants List")
 
@@ -96,6 +95,119 @@ def show():
         st.markdown(f"### Participants ({len(filtered_participants)})")
 
         if filtered_participants:
+            # Edit mode check
+            edit_id = st.session_state.get("edit_participant_id")
+
+            if edit_id:
+                # Show edit form
+                participant = db.fetch_one("participants", {"id": f"eq.{edit_id}"})
+                if participant:
+                    st.markdown("### Edit Participant")
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        number = st.number_input(
+                            "Number",
+                            min_value=1,
+                            value=int(participant.get("number", 1)),
+                        )
+                        nickname = st.text_input(
+                            "Nickname",
+                            value=participant.get("nickname", ""),
+                        )
+                        affiliation = st.text_input(
+                            "Affiliation",
+                            value=participant.get("affiliation", "") or "",
+                        )
+                        igg_id = st.text_input(
+                            "Commander ID",
+                            value=participant.get("igg_id", "") or "",
+                        )
+                        alliance = st.text_input(
+                            "Alliance",
+                            value=participant.get("alliance", "") or "",
+                        )
+                        event_name = st.text_input(
+                            "Event Name",
+                            value=participant.get("event_name", "") or "",
+                        )
+
+                    with col2:
+                        wait_confirmed = st.checkbox(
+                            "Wait Confirmed",
+                            value=bool(participant.get("wait_confirmed")),
+                        )
+                        confirmed = st.checkbox(
+                            "Confirmed",
+                            value=bool(participant.get("confirmed")),
+                        )
+                        completed = st.checkbox(
+                            "Completed",
+                            value=bool(participant.get("completed")),
+                        )
+                        notes = st.text_area(
+                            "Notes",
+                            value=participant.get("notes", "") or "",
+                            height=100,
+                        )
+                        participation_record = st.text_area(
+                            "Participation Record",
+                            value=participant.get("participation_record", "") or "",
+                            height=100,
+                        )
+
+                    st.markdown("---")
+
+                    col_btn1, col_btn2, col_btn3 = st.columns(3)
+
+                    with col_btn1:
+                        if st.button(
+                            "Save Changes", type="primary", use_container_width=True
+                        ):
+                            try:
+                                db.update_participant(
+                                    edit_id,
+                                    number=number,
+                                    nickname=nickname,
+                                    affiliation=affiliation if affiliation else None,
+                                    igg_id=igg_id if igg_id else None,
+                                    alliance=alliance if alliance else None,
+                                    event_name=event_name if event_name else None,
+                                    wait_confirmed=1 if wait_confirmed else 0,
+                                    confirmed=1 if confirmed else 0,
+                                    completed=1 if completed else 0,
+                                    notes=notes if notes else None,
+                                    participation_record=participation_record
+                                    if participation_record
+                                    else None,
+                                )
+                                st.success("Updated successfully!")
+                                st.session_state["edit_participant_id"] = None
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error: {e}")
+
+                    with col_btn2:
+                        if st.button("Cancel", use_container_width=True):
+                            st.session_state["edit_participant_id"] = None
+                            st.rerun()
+
+                    with col_btn3:
+                        if is_master:
+                            if st.button(
+                                "Delete", type="secondary", use_container_width=True
+                            ):
+                                try:
+                                    db.delete_participant(edit_id)
+                                    st.success("Deleted!")
+                                    st.session_state["edit_participant_id"] = None
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Error: {e}")
+
+                    st.markdown("---")
+
+            # Display participants list
             for p in filtered_participants:
                 completion_badge = "✅" if p.get("completed") else "⏳"
 
@@ -193,16 +305,10 @@ def show():
         col1, col2 = st.columns([1, 2])
 
         with col1:
-            try:
-                next_number_result = execute_query(
-                    "SELECT COALESCE(MAX(number), 0) + 1 as next_number FROM participants",
-                    fetch="one",
-                )
-                auto_number = (
-                    next_number_result["next_number"] if next_number_result else 1
-                )
-            except:
-                auto_number = 1
+            # Get next number
+            all_participants = db.list_participants()
+            max_number = max([p.get("number", 0) for p in all_participants] + [0])
+            auto_number = max_number + 1
 
             number = st.number_input(
                 "Number", min_value=1, value=auto_number, disabled=True
@@ -277,255 +383,140 @@ def show():
             except Exception as e:
                 st.error(f"Error adding: {e}")
 
-    # Tab 3: Import Excel
+    # Tab 3: Import Excel/CSV
     with tab3:
-        st.markdown("### Import Excel")
+        st.markdown("### Import Excel/CSV")
 
         st.markdown("""
-        Import participants from **Dice List.xlsx**.
+        Import participants from **Excel (.xlsx)** or **CSV** file.
 
-        - Excel files have sheets organized by date
-        - Earlier dates are Session 1, next is Session 2, etc.
-        - Same dates are integrated, differences are separate.
+        - Auto column detection: Nickname, Commander ID, Affiliation, etc.
+        - Flexible mapping: Support various column names
+        - Preview before saving
         """)
 
         uploaded_file = st.file_uploader(
-            "Upload Excel File",
-            type=["xlsx", "xls"],
-            help="Select Dice List.xlsx file",
+            "Upload File",
+            type=["xlsx", "xls", "csv"],
+            help="Select Excel or CSV file",
         )
 
         if uploaded_file:
             try:
                 import openpyxl
                 from io import BytesIO
-
-                wb = openpyxl.load_workbook(
-                    BytesIO(uploaded_file.read()), data_only=True
-                )
-
-                st.markdown("### Sheet List (by Session)")
-
-                sheets = wb.sheetnames
-
-                for i, sheet_name in enumerate(sheets, 1):
-                    ws = wb[sheet_name]
-                    row_count = ws.max_row - 1
-
-                    st.markdown(f"""
-                    **Session {i}**: {sheet_name}
-                    - Data rows: {row_count if row_count > 0 else 0}
-                    """)
-
-                    if st.button(f"Import", key=f"load_sheet_{sheet_name}"):
-                        try:
-                            headers = [cell.value for cell in ws[1] if cell.value]
-                            column_mapping = map_excel_columns(headers)
-                            display_column_mapping_info(column_mapping, headers)
-
-                            rows = []
-                            for row_idx, row in enumerate(
-                                ws.iter_rows(min_row=2, values_only=True)
-                            ):
-                                if not row or row[0] is None:
-                                    continue
-
-                                row_data = extract_row_data(
-                                    row, headers, column_mapping
-                                )
-
-                                if row_data.get("commander_id"):
-                                    row_data["event_name"] = f"Session{i}"
-                                    rows.append(row_data)
-
-                            st.success(f"Found {len(rows)} records.")
-
-                            display_preview_data(rows)
-
-                            st.markdown("---")
-                            if st.button(
-                                "Save to Database",
-                                key=f"save_{sheet_name}",
-                                type="primary",
-                            ):
-                                with st.spinner("Saving..."):
-                                    added_count = 0
-                                    updated_count = 0
-
-                                    for row_data in rows:
-                                        try:
-                                            existing = execute_query(
-                                                """
-                                                SELECT id FROM participants
-                                                WHERE event_name = ? AND number = ?
-                                                """,
-                                                (
-                                                    row_data["event_name"],
-                                                    row_data.get("number"),
-                                                ),
-                                                fetch="one",
-                                            )
-
-                                            if existing:
-                                                participant_id = existing["id"]
-                                                db.update_participant(
-                                                    participant_id,
-                                                    nickname=row_data.get("nickname"),
-                                                    affiliation=row_data.get(
-                                                        "affiliation"
-                                                    ),
-                                                    igg_id=row_data.get("commander_id"),
-                                                    alliance=row_data.get("alliance"),
-                                                    wait_confirmed=1
-                                                    if row_data.get("wait_confirmed")
-                                                    else 0,
-                                                    confirmed=1
-                                                    if row_data.get("confirmed")
-                                                    else 0,
-                                                    completed=1
-                                                    if row_data.get("completed")
-                                                    else 0,
-                                                    notes=row_data.get("notes"),
-                                                    participation_record=row_data.get(
-                                                        "participation_record"
-                                                    ),
-                                                )
-                                                updated_count += 1
-                                            else:
-                                                db.add_participant(row_data)
-                                                added_count += 1
-
-                                        except Exception as row_error:
-                                            st.warning(
-                                                f"Error processing row {row_data.get('number', '?')}: {row_error}"
-                                            )
-                                            continue
-
-                                    st.success(
-                                        f"Done! Added: {added_count}, Updated: {updated_count}"
-                                    )
-                                    st.rerun()
-
-                        except Exception as e:
-                            st.error(f"Error processing data: {e}")
-
-            except Exception as e:
-                st.error(f"Error reading file: {e}")
-
-    # Tab 4: Google Sheets Integration
-    with tab4:
-        st.markdown("### Google Sheets Integration")
-
-        col1, col2 = st.columns([1, 2])
-
-        with col1:
-            sheets_url = st.text_input(
-                "Google Sheets URL",
-                placeholder="https://docs.google.com/spreadsheets/d/...",
-                value=st.secrets.get("PARTICIPANT_GOOGLE_SHEET_URL", ""),
-                help="Enter shared Google Sheets link",
-            )
-
-            if st.button(
-                "Import from Google Sheets", type="primary", use_container_width=True
-            ):
-                if not sheets_url:
-                    st.error("Enter Google Sheets URL.")
-                    return
-
-                import requests
                 import pandas as pd
-                from io import StringIO
 
-                if "edit" in sheets_url:
-                    sheet_id = sheets_url.split("/d/")[1].split("/edit")[0]
-                    csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid=0"
+                file_type = uploaded_file.name.split(".")[-1].lower()
+
+                if file_type == "csv":
+                    df = pd.read_csv(uploaded_file)
+                    st.success(f"CSV loaded: {len(df)} rows")
+                    st.dataframe(df.head(5))
                 else:
-                    csv_url = sheets_url
+                    wb = openpyxl.load_workbook(
+                        BytesIO(uploaded_file.read()), data_only=True
+                    )
 
-                with st.spinner("Fetching data..."):
-                    response = requests.get(csv_url, timeout=30)
-                    if response.status_code == 200:
-                        df = pd.read_csv(StringIO(response.text))
+                    st.success(f"Excel loaded: {len(wb.sheetnames)} sheets")
 
-                        st.success(f"Imported {len(df)} records.")
+                    sheets = wb.sheetnames
+                    sheet_option = st.selectbox("Select Sheet", sheets)
+                    ws = wb[sheet_option]
 
-                        st.markdown("### Data Preview")
-                        st.dataframe(df.head(10))
+                    headers = [cell.value for cell in ws[1] if cell.value]
+                    df = pd.DataFrame(
+                        ws.iter_rows(min_row=2, values_only=True), columns=headers
+                    )
+                    st.dataframe(df.head(5))
 
-                        st.markdown("### Auto Process Data")
+                if headers:
+                    st.markdown("---")
+                    st.markdown("### Column Mapping")
 
-                        headers = df.columns.tolist()
-                        column_mapping = map_excel_columns(headers)
-                        display_column_mapping_info(column_mapping, headers)
+                    column_mapping = map_excel_columns(headers)
+                    display_column_mapping_info(column_mapping, headers)
 
-                        st.markdown("---")
+                    st.markdown("---")
+                    st.markdown("### Preview")
+
+                    rows = []
+                    for idx, row in df.iterrows():
+                        row_data = extract_row_data(row, headers, column_mapping)
+                        if row_data.get("commander_id"):
+                            rows.append(row_data)
+
+                    st.success(f"Found {len(rows)} valid records")
+
+                    # Show preview table
+                    if rows:
+                        preview_df = pd.DataFrame(rows[:10])
+                        st.dataframe(preview_df)
+
+                    st.markdown("---")
+
+                    # Event name input
+                    event_name = st.text_input(
+                        "Event Name for Imported Data",
+                        placeholder="e.g., 260128",
+                    )
+
+                    col_btn1, col_btn2 = st.columns(2)
+
+                    with col_btn1:
                         if st.button(
                             "Save to Database",
                             type="primary",
                             use_container_width=True,
+                            disabled=not event_name,
                         ):
                             with st.spinner("Saving..."):
                                 added_count = 0
                                 updated_count = 0
 
-                                rows = []
-                                for index, row in df.iterrows():
+                                for row_data in rows:
                                     try:
-                                        event_name = f"Session{index + 1}"
-                                        row_data = extract_row_data(
-                                            row, headers, column_mapping
-                                        )
-
-                                        if row_data.get("commander_id"):
-                                            row_data["event_name"] = event_name
-                                            rows.append(row_data)
-
+                                        row_data["event_name"] = event_name
+                                        if not row_data.get("number"):
+                                            row_data["number"] = auto_number
+                                        db.add_participant(row_data)
+                                        added_count += 1
                                     except Exception as row_error:
-                                        st.warning(
-                                            f"Error processing row {index + 2}: {row_error}"
-                                        )
+                                        st.warning(f"Error processing row: {row_error}")
                                         continue
 
                                 st.success(
                                     f"Done! Added: {added_count}, Updated: {updated_count}"
                                 )
+                                st.rerun()
 
-                    else:
-                        st.error(f"Google Sheets access failed: {response.status_code}")
+                    with col_btn2:
+                        # Download as CSV
+                        if rows:
+                            csv = pd.DataFrame(rows).to_csv(index=False)
+                            st.download_button(
+                                "Download as CSV",
+                                csv,
+                                "participants_import.csv",
+                                "text/csv",
+                                use_container_width=True,
+                            )
 
-        with col2:
-            st.markdown("### Guide")
-            st.markdown("""
-            **Google Sheets Integration:**
-
-            - **URL**: Enter shared Google Sheets link
-            - **Auto Mapping**: Automatically detect and map columns
-            - **Data Processing**: Check duplicates and auto-organize
-            - **Bulk Save**: Save directly to database
-
-            **Supported Column Keywords:**
-            - **Commander ID**: commander_id, commander, number, id
-            - **Nickname**: nickname, name
-            - **Affiliation**: affiliation, guild
-            - **Alliance**: alliance
-            - **Notes**: notes, comment
-            """)
+            except Exception as e:
+                st.error(f"Error reading file: {e}")
 
     st.markdown("---")
     st.markdown("""
     ### Admin Guide
 
-    - **Participants List**: Manage existing participant info
-    - **Add Participant**: Manually add new participant (number auto-generated)
-    - **Import Excel**: Bulk add from Dice List.xlsx (auto column detection)
-    - **Sheets Integration**: Import real-time data from Google Sheets
+    - **Participants List**: View and edit participant info
+    - **Add Participant**: Manually add new participant
+    - **Import Excel/CSV**: Bulk import from file
 
-    **Excel/Sheets Format:**
-    - Auto column detection: Nickname/Affiliation/IGG ID
-    - Flexible mapping: Support various column names
-    - Duplicate handling: Auto check and update
-    - Session management: Auto assign sessions
-
-    Data from Excel or Google Sheets is automatically assigned to sessions by event name.
+    **Supported Column Keywords:**
+    - **Commander ID**: commander_id, commander, number, id, igg_id
+    - **Nickname**: nickname, name
+    - **Affiliation**: affiliation, guild
+    - **Alliance**: alliance
+    - **Notes**: notes, comment
     """)

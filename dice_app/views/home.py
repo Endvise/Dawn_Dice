@@ -325,7 +325,9 @@ def show():
                 "Go to Reservation",
                 use_container_width=True,
                 type="primary",
-                key="home_go_to_reservation",
+                key=f"home_go_to_reservation_{user['id']}"
+                if user
+                else "home_go_to_reservation",
             ):
                 st.session_state["page"] = "📝 예약 신청"
                 st.rerun()

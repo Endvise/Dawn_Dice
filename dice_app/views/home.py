@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-메인 홈페이지 - 회차별 예약 시스템 포함
+Main Homepage - Session-based Reservation System
 """
 
 import streamlit as st
@@ -12,33 +12,36 @@ from typing import Optional, Dict, Any
 
 
 def get_reservation_status() -> Dict[str, Any]:
-    """예약 상태를 반환합니다."""
-    # 기존 참여자 수
+    """Returns reservation status."""
+    # Existing participants count
     result = execute_query(
         "SELECT COUNT(*) as count FROM participants WHERE completed = 1", fetch="one"
     )
     participants_count = result["count"] if result else 0
 
-    # 승인된 예약자 수
+    # Approved reservations count
     result = execute_query(
         "SELECT COUNT(*) as count FROM reservations WHERE status = 'approved'",
         fetch="one",
     )
     approved_count = result["count"] if result else 0
 
-    # 전체 참여자 수
+    # Total participants
     total_count = participants_count + approved_count
 
-    # 현재 활성화된 회차 확인
+    # Get current active session
     active_session = get_active_session()
 
     if active_session:
-        # 회차별 참여자 수
+        # Session participants count
         session_id = active_session["id"]
         session_name = active_session.get("session_name", "")
+        session_number = active_session.get("session_number", "")
         max_participants = active_session.get("max_participants", db.MAX_PARTICIPANTS)
+        reservation_open_time = active_session.get("reservation_open_time")
+        reservation_close_time = active_session.get("reservation_close_time")
 
-        # 회차별 승인된 예약 수
+        # Session approved reservations count
         result = execute_query(
             "SELECT COUNT(*) as count FROM reservations WHERE event_name = ? AND status = 'approved'",
             (session_name,),
@@ -46,7 +49,7 @@ def get_reservation_status() -> Dict[str, Any]:
         )
         session_approved_count = result["count"] if result else 0
 
-        # 총 참여자 수 (기존 + 회차별 승인)
+        # Total session participants (existing + approved)
         result = execute_query(
             "SELECT COUNT(*) as count FROM participants WHERE event_name = ? AND completed = 1",
             (session_name,),
@@ -62,14 +65,44 @@ def get_reservation_status() -> Dict[str, Any]:
         )
         waitlist_count = result_waitlist["count"] if result_waitlist else 0
 
+        # Check if reservation is open
+        now = datetime.now()
+        is_reservation_open = True
+        is_reservation_closed = False
+
+        if reservation_open_time:
+            try:
+                open_time = datetime.strptime(
+                    reservation_open_time, "%Y-%m-%d %H:%M:%S"
+                )
+                if now < open_time:
+                    is_reservation_open = False
+            except (ValueError, TypeError):
+                pass
+
+        if reservation_close_time:
+            try:
+                close_time = datetime.strptime(
+                    reservation_close_time, "%Y-%m-%d %H:%M:%S"
+                )
+                if now >= close_time:
+                    is_reservation_closed = True
+                    is_reservation_open = False
+            except (ValueError, TypeError):
+                pass
+
         return {
             "total": session_count,
             "max": max_participants,
             "approved": session_approved_count,
             "is_full": session_count >= max_participants,
-            "session_number": active_session["session_number"],
+            "session_number": session_number,
             "session_name": session_name,
             "session_date": active_session.get("session_date"),
+            "reservation_open_time": reservation_open_time,
+            "reservation_close_time": reservation_close_time,
+            "is_reservation_open": is_reservation_open,
+            "is_reservation_closed": is_reservation_closed,
             "is_session_active": True,
             "overall_total": total_count,
             "overall_max": db.MAX_PARTICIPANTS,
@@ -90,6 +123,11 @@ def get_reservation_status() -> Dict[str, Any]:
             "is_full": total_count >= db.MAX_PARTICIPANTS,
             "session_number": None,
             "session_name": None,
+            "session_date": None,
+            "reservation_open_time": None,
+            "reservation_close_time": None,
+            "is_reservation_open": False,
+            "is_reservation_closed": False,
             "is_session_active": False,
             "overall_total": total_count,
             "overall_max": db.MAX_PARTICIPANTS,
@@ -99,7 +137,7 @@ def get_reservation_status() -> Dict[str, Any]:
 
 
 def get_active_session() -> Optional[Dict[str, Any]]:
-    """활성화된 회차를 반환합니다."""
+    """Returns the active session."""
     result = execute_query(
         """
         SELECT s.*, u.nickname as creator_name
@@ -114,19 +152,21 @@ def get_active_session() -> Optional[Dict[str, Any]]:
 
 
 def get_my_order(user_id: int) -> tuple[Optional[int], bool]:
-    """내 순위를 반환합니다. (순위, 정원 여부)"""
-    # 기존 참여자 수
-    participants_count = execute_query(
+    """Returns user's order (order number, within capacity)."""
+    # Existing participants count
+    result = execute_query(
         "SELECT COUNT(*) as count FROM participants WHERE completed = 1", fetch="one"
-    ).get("count", 0)
+    )
+    participants_count = result["count"] if result else 0
 
-    # 승인된 예약자 수
-    approved_count = execute_query(
+    # Approved reservations count
+    result = execute_query(
         "SELECT COUNT(*) as count FROM reservations WHERE status = 'approved'",
         fetch="one",
-    ).get("count", 0)
+    )
+    approved_count = result["count"] if result else 0
 
-    # 내 예약
+    # My reservation
     my_reservations = execute_query(
         "SELECT * FROM reservations WHERE user_id = ? ORDER BY created_at DESC LIMIT 1",
         (user_id,),
@@ -136,7 +176,7 @@ def get_my_order(user_id: int) -> tuple[Optional[int], bool]:
     if not my_reservations:
         return None, False
 
-    # 선착순위 계산
+    # Calculate order position
     total_before_me = participants_count + approved_count
 
     if my_reservations["status"] == "approved":
@@ -149,8 +189,29 @@ def get_my_order(user_id: int) -> tuple[Optional[int], bool]:
     return my_order, my_order <= db.MAX_PARTICIPANTS
 
 
+def get_time_remaining(open_time_str: str) -> Dict[str, int]:
+    """Returns time remaining until open time."""
+    try:
+        open_time = datetime.strptime(open_time_str, "%Y-%m-%d %H:%M:%S")
+        now = datetime.now()
+        diff = open_time - now
+
+        if diff.total_seconds() <= 0:
+            return {"days": 0, "hours": 0, "minutes": 0, "seconds": 0}
+
+        total_seconds = int(diff.total_seconds())
+        days = total_seconds // (24 * 3600)
+        hours = (total_seconds % (24 * 3600)) // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+
+        return {"days": days, "hours": hours, "minutes": minutes, "seconds": seconds}
+    except (ValueError, TypeError):
+        return {"days": 0, "hours": 0, "minutes": 0, "seconds": 0}
+
+
 def show():
-    """메인 페이지 표시"""
+    """Display main page"""
     st.set_page_config(
         page_title="DaWn Dice Party",
         page_icon="🎲",
@@ -158,13 +219,13 @@ def show():
         initial_sidebar_state="expanded",
     )
 
-    # 앱 초기화
+    # App initialization
     db.init_app()
 
-    # 세션 초기화
+    # Session initialization
     auth.init_session_state()
 
-    # 개발자 도구 방지 (관리자 제외)
+    # Developer tools prevention (except admin)
     import security_utils
 
     security_utils.inject_devtools_block()
@@ -174,56 +235,106 @@ def show():
     st.markdown("by Entity")
     st.markdown("---")
 
-    # Reservation status display
+    # Get reservation status
     status = get_reservation_status()
 
-    # 활성화된 회차가 있으면 회차별 정보 표시
+    # Display session info prominently
     if status["is_session_active"]:
-        st.error(
-            f"## ⛔ {status['session_number']}회차 예약 마감 [대기순번 등록만 가능]"
-        )
-        st.info(
-            f"현재 {status['total']}명 / {status['max']}명 (대기자: {status['overall_waitlist']}명)"
-        )
+        session_number = status["session_number"]
+        session_name = status["session_name"]
 
-        # 회차별 상세 정보
-        st.markdown(f"### 📋 {status['session_name']}회차 정보")
-        st.markdown(f" - **회차 번호**: {status['session_number']}")
-        st.markdown(f" - **회차 날짜**: {status['session_date']}")
+        # Prominent session header
+        if session_number:
+            st.markdown(f"## 🎯 This is the {session_number} Session")
+        if session_name:
+            st.markdown(f"### 📅 {session_name}")
+
+        # Reservation status display
+        if status["is_reservation_closed"]:
+            st.error("## ⛔ Reservation Closed")
+        elif status["is_reservation_open"]:
+            st.success("## ✅ Reservation Open")
+        else:
+            st.warning("## ⏰ Reservation Opening Soon")
+
+        # Countdown timer if reservation is not yet open
+        if (
+            status["reservation_open_time"]
+            and not status["is_reservation_open"]
+            and not status["is_reservation_closed"]
+        ):
+            time_remaining = get_time_remaining(status["reservation_open_time"])
+            if (
+                time_remaining["days"] > 0
+                or time_remaining["hours"] > 0
+                or time_remaining["minutes"] > 0
+                or time_remaining["seconds"] > 0
+            ):
+                col_cd1, col_cd2, col_cd3, col_cd4 = st.columns(4)
+                with col_cd1:
+                    st.metric("Days", time_remaining["days"])
+                with col_cd2:
+                    st.metric("Hours", time_remaining["hours"])
+                with col_cd3:
+                    st.metric("Minutes", time_remaining["minutes"])
+                with col_cd4:
+                    st.metric("Seconds", time_remaining["seconds"])
+                st.info(f"📅 Reservation opens at: {status['reservation_open_time']}")
+
+        # Capacity info
+        if status["is_reservation_open"]:
+            if status["is_full"]:
+                st.error(
+                    f"⛔ Capacity Full - Only Waitlist Registration Available ({status['total']} / {status['max']}, Waitlist: {status['overall_waitlist']})"
+                )
+            else:
+                st.info(
+                    f"📊 {status['total']} / {status['max']} participants (Waitlist: {status['overall_waitlist']})"
+                )
+
+        # Session details
+        st.markdown(f"### 📋 Session Information")
+        if status["session_date"]:
+            st.markdown(f" - **Session Date**: {status['session_date']}")
 
         col1, col2 = st.columns(2)
 
         with col1:
             st.metric(
-                f"{status['session_number']}회차 참여자",
-                f"{status['total']} / {status['max']}명",
+                f"Session {session_number} Participants"
+                if session_number
+                else "Participants",
+                f"{status['total']} / {status['max']}",
             )
-            st.metric("승인된 예약", f"{status['approved']}건")
+            st.metric("Approved Reservations", f"{status['approved']}")
 
         with col2:
-            st.metric("남은 자리", f"{status['max'] - status['total']}명")
+            st.metric("Remaining Spots", f"{status['max'] - status['total']}")
 
         st.markdown("---")
     else:
-        st.success(f"## ✅ 예약 가능")
+        # No active session
+        st.success("## ✅ Reservation Open")
         st.info(
-            f"현재 {status['total']}명 / {status['max']}명 (대기자: {status['overall_waitlist']}명)"
+            f"📊 {status['total']} / {status['max']} participants (Waitlist: {status['overall_waitlist']})"
         )
 
     st.markdown("---")
 
+    # Overall statistics
     col1, col2, col3 = st.columns(3)
 
     with col1:
         st.metric(
-            "현재 참여자", f"{status['overall_total']} / {status['overall_max']}명"
+            "Current Participants",
+            f"{status['overall_total']} / {status['overall_max']}",
         )
 
     with col2:
-        st.metric("승인된 예약", f"{status['approved']}명")
+        st.metric("Approved Reservations", f"{status['approved']}")
 
     with col3:
-        st.metric("대기자", f"{status['overall_waitlist']}명")
+        st.metric("Waitlist", f"{status['overall_waitlist']}")
 
     st.markdown("---")
 
@@ -314,23 +425,48 @@ def show():
             st.info("No reservation history yet.")
             st.markdown("---")
 
-            if user and not status["is_session_active"]:
+            # Show reservation button only if reservation is open
+            if user and status["is_session_active"]:
+                if status["is_reservation_open"]:
+                    if not status["is_full"]:
+                        st.markdown("### 📝 Make Reservation")
+                        st.info("Click the button below to make your reservation!")
+                    else:
+                        st.warning(
+                            "⚠️ Current session is full. Reservations will be added to waiting list."
+                        )
+                    if st.button(
+                        "Go to Reservation",
+                        use_container_width=True,
+                        type="primary",
+                        key=f"home_go_to_reservation_{user['id']}"
+                        if user
+                        else "home_go_to_reservation",
+                    ):
+                        st.session_state["page"] = "📝 예약 신청"
+                        st.rerun()
+                elif status["is_reservation_closed"]:
+                    st.error("⛔ Reservation is closed for this session.")
+                else:
+                    # Reservation not yet open
+                    st.warning("⏰ Reservations are not open yet.")
+                    if status["reservation_open_time"]:
+                        st.info(
+                            f"📅 Reservations open at: {status['reservation_open_time']}"
+                        )
+            elif user and not status["is_session_active"]:
                 st.markdown("### 📝 Make Reservation")
-            elif user:
-                st.warning(
-                    "⚠️ Current session is full. Reservations will be added to waiting list."
-                )
 
-            if st.button(
-                "Go to Reservation",
-                use_container_width=True,
-                type="primary",
-                key=f"home_go_to_reservation_{user['id']}"
-                if user
-                else "home_go_to_reservation",
-            ):
-                st.session_state["page"] = "📝 예약 신청"
-                st.rerun()
+                if st.button(
+                    "Go to Reservation",
+                    use_container_width=True,
+                    type="primary",
+                    key=f"home_go_to_reservation_{user['id']}"
+                    if user
+                    else "home_go_to_reservation",
+                ):
+                    st.session_state["page"] = "📝 예약 신청"
+                    st.rerun()
 
     else:
         st.markdown("### 👋 Welcome!")
@@ -421,15 +557,15 @@ def show():
             for ann in display_announcements:
                 # Category badge
                 category_badge = {
-                    "공지": "📢",
-                    "안내": "ℹ️",
-                    "이벤트": "🎉",
+                    "notice": "📢",
+                    "guide": "ℹ️",
+                    "event": "🎉",
                     "notice": "📢",
                     "guide": "ℹ️",
                     "event": "🎉",
                 }
 
-                badge = category_badge.get(ann.get("category", "공지"), "📢")
+                badge = category_badge.get(ann.get("category", "notice"), "📢")
 
                 # Pinned indicator
                 pin_indicator = " 📌 Pinned" if ann.get("is_pinned") else ""

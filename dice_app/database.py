@@ -174,6 +174,8 @@ def init_database():
             session_name TEXT,
             session_date DATE,
             max_participants INTEGER DEFAULT 180,
+            reservation_open_time DATETIME,
+            reservation_close_time DATETIME,
             is_active INTEGER DEFAULT 1,
             created_by INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -933,3 +935,20 @@ def init_app():
             )
     except Exception as e:
         st.warning(f"마이그레이션 중 오류 발생: {e}")
+
+    # 마이그레이션: event_sessions에 예약 시간 필드 추가
+    try:
+        result = execute_query("PRAGMA table_info(event_sessions)", fetch="all")
+        existing_columns = [col["name"] for col in result]
+
+        if "reservation_open_time" not in existing_columns:
+            execute_query(
+                "ALTER TABLE event_sessions ADD COLUMN reservation_open_time DATETIME"
+            )
+
+        if "reservation_close_time" not in existing_columns:
+            execute_query(
+                "ALTER TABLE event_sessions ADD COLUMN reservation_close_time DATETIME"
+            )
+    except Exception as e:
+        st.warning(f"이벤트 세션 마이그레이션 중 오류 발생: {e}")

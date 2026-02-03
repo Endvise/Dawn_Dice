@@ -214,8 +214,57 @@ def show():
             )
 
         with col2:
-            st.markdown("### Guide")
+            st.markdown("### Reservation Time Settings")
 
+            st.info("""
+            **Reservation Open Time:**
+            - Set when reservations open for this session
+            - If not set, reservations are open immediately when session is created
+            - Users can see countdown timer on homepage
+
+            **Reservation Close Time:**
+            - Set when reservations close for this session
+            - After this time, no new reservations can be made
+            - If not set, reservations stay open until session is full
+            """)
+
+            # Reservation time settings
+            col_time1, col_time2 = st.columns(2)
+
+            with col_time1:
+                enable_open_time = st.checkbox(
+                    "Set Reservation Open Time", key="enable_open_time"
+                )
+                if enable_open_time:
+                    reservation_open_time = st.datetime_input(
+                        "Reservation Open Time",
+                        value=datetime.now() + timedelta(hours=1),
+                        key="reservation_open_time",
+                    )
+                else:
+                    reservation_open_time = None
+
+            with col_time2:
+                enable_close_time = st.checkbox(
+                    "Set Reservation Close Time", key="enable_close_time"
+                )
+                if enable_close_time:
+                    reservation_close_time = st.datetime_input(
+                        "Reservation Close Time",
+                        value=datetime.now() + timedelta(days=1),
+                        key="reservation_close_time",
+                    )
+                else:
+                    reservation_close_time = None
+
+        st.markdown("---")
+
+        # Guide
+        st.markdown("### Guide")
+
+        col_guide1, col_guide2 = st.columns([1, 2])
+
+        with col_guide1:
             st.markdown("""
             - **Session Number**: Auto-increment (next available)
             - **Session Name**: e.g., "260128 Dice Party"
@@ -232,11 +281,33 @@ def show():
             - 2nd Priority: External participants (new signups)
             """)
 
+        with col_guide2:
+            st.markdown("""
+            **Reservation Time Settings:**
+
+            - **Countdown Timer**: Users see countdown on homepage until reservations open
+            - **First-Come-First-Served**: Once open, users compete for spots
+            - **Capacity Limit**: Auto switch to waitlist when full
+            - **Close Time**: After close time, no more reservations accepted
+
+            **Example Timeline:**
+            1. Create session with open time: 8:00 PM
+            2. Users see countdown on homepage
+            3. At 8:00 PM, reservations open
+            4. First users to submit get spots
+            5. At close time, reservation closes
+            """)
+
         st.markdown("---")
         if st.button("Create Session", type="primary", use_container_width=True):
             if not session_name:
                 st.error("Enter session name.")
                 return
+
+            if enable_open_time and enable_close_time:
+                if reservation_open_time >= reservation_close_time:
+                    st.error("Open time must be before close time.")
+                    return
 
             try:
                 create_session(
@@ -245,10 +316,25 @@ def show():
                     session_date=session_date,
                     max_participants=max_participants,
                     created_by=user["id"],
+                    reservation_open_time=reservation_open_time.strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+                    if reservation_open_time
+                    else None,
+                    reservation_close_time=reservation_close_time.strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+                    if reservation_close_time
+                    else None,
                 )
 
                 st.success(f"Session {session_number} created.")
-                st.info(f"You can start accepting reservations for {session_name}.")
+                if reservation_open_time:
+                    st.info(
+                        f"Reservations will open at: {reservation_open_time.strftime('%Y-%m-%d %H:%M')}"
+                    )
+                else:
+                    st.info("Reservations are now open!")
                 st.rerun()
 
             except Exception as e:
@@ -442,14 +528,24 @@ def create_session(
     session_date: date,
     max_participants: int,
     created_by: int,
+    reservation_open_time: str = None,
+    reservation_close_time: str = None,
 ):
     """Create new session."""
     execute_query("UPDATE event_sessions SET is_active = 0")
 
     execute_query(
         """
-        INSERT INTO event_sessions (session_number, session_name, session_date, max_participants, created_by)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO event_sessions (session_number, session_name, session_date, max_participants, reservation_open_time, reservation_close_time, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     """,
-        (session_number, session_name, session_date, max_participants, created_by),
+        (
+            session_number,
+            session_name,
+            session_date,
+            max_participants,
+            reservation_open_time,
+            reservation_close_time,
+            created_by,
+        ),
     )

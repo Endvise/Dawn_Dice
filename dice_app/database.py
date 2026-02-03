@@ -4,6 +4,8 @@ Database Management Module - Supports SQLite and PostgreSQL (Supabase)
 """
 
 import sqlite3
+import psycopg2
+from psycopg2 import sql
 import streamlit as st
 import bcrypt
 from pathlib import Path
@@ -24,8 +26,16 @@ DB_CONNECTION_STRING = st.secrets.get("DB_CONNECTION_STRING", "")
 _local = threading.local()
 
 
-def get_connection() -> sqlite3.Connection:
+def get_connection():
     """Get database connection (thread-safe)."""
+    if DB_TYPE == "postgresql":
+        return get_postgres_connection()
+    else:
+        return get_sqlite_connection()
+
+
+def get_sqlite_connection() -> sqlite3.Connection:
+    """Get SQLite database connection (thread-safe)."""
     if not hasattr(_local, "connection") or _local.connection is None:
         DB_PATH.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(str(DB_PATH), check_same_thread=False, timeout=30)
@@ -34,9 +44,29 @@ def get_connection() -> sqlite3.Connection:
     return _local.connection
 
 
+def get_postgres_connection():
+    """Get PostgreSQL database connection (thread-safe)."""
+    if not hasattr(_local, "connection") or _local.connection is None:
+        conn = psycopg2.connect(DB_CONNECTION_STRING)
+        conn.autocommit = False
+        _local.connection = conn
+    return _local.connection
+
+
 def execute_query(query: str, params: tuple = (), fetch: bool | str = False) -> Any:
     """Execute SQL query."""
     conn = get_connection()
+
+    if DB_TYPE == "postgresql":
+        # Convert SQLite placeholders to PostgreSQL
+        pg_query = query.replace("?", "%s")
+        return execute_postgres_query(conn, pg_query, params, fetch)
+    else:
+        return execute_sqlite_query(conn, query, params, fetch)
+
+
+def execute_sqlite_query(conn, query: str, params: tuple, fetch: bool | str) -> Any:
+    """Execute SQLite query."""
     cursor = conn.cursor()
 
     try:
@@ -59,6 +89,46 @@ def execute_query(query: str, params: tuple = (), fetch: bool | str = False) -> 
         return cursor
 
     except sqlite3.OperationalError as e:
+        conn.rollback()
+        st.error(f"Database error: {e}")
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise
+
+
+def execute_postgres_query(conn, query: str, params: tuple, fetch: bool | str) -> Any:
+    """Execute PostgreSQL query."""
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute(query, params)
+
+        if fetch:
+            if fetch == "one":
+                result = cursor.fetchone()
+                if result:
+                    # Convert to dict with column names
+                    columns = [desc[0] for desc in cursor.description]
+                    return dict(zip(columns, result))
+                return None
+            elif fetch == "all":
+                results = cursor.fetchall()
+                if results:
+                    columns = [desc[0] for desc in cursor.description]
+                    return [dict(zip(columns, row)) for row in results]
+                return []
+            else:
+                results = cursor.fetchall()
+                if results:
+                    columns = [desc[0] for desc in cursor.description]
+                    return [dict(zip(columns, row)) for row in results]
+                return []
+
+        conn.commit()
+        return cursor
+
+    except psycopg2.OperationalError as e:
         conn.rollback()
         st.error(f"Database error: {e}")
         raise
@@ -248,8 +318,7 @@ def create_user(
         (username, commander_id, password_hash, role, nickname, server, alliance),
     )
 
-    result = execute_query("SELECT last_insert_rowid()", fetch="one")
-    return result["last_insert_rowid()"] if result else 0
+    return get_last_insert_id()
 
 
 def get_user_by_username(username: str) -> Optional[Dict[str, Any]]:
@@ -390,8 +459,7 @@ def create_reservation(
         ),
     )
 
-    result = execute_query("SELECT last_insert_rowid()", fetch="one")
-    return result["last_insert_rowid()"] if result else 0
+    return get_last_insert_id()
 
 
 def get_reservation_by_id(reservation_id: int) -> Optional[Dict[str, Any]]:
@@ -493,8 +561,7 @@ def add_to_blacklist(
         (reason, commander_id),
     )
 
-    result = execute_query("SELECT last_insert_rowid()", fetch="one")
-    return result["last_insert_rowid()"] if result else 0
+    return get_last_insert_id()
 
 
 def check_blacklist(commander_id: str) -> Optional[Dict[str, Any]]:
@@ -631,8 +698,7 @@ def add_server(server_name: str, server_code: Optional[str] = None) -> int:
         (server_name, server_code),
     )
 
-    result = execute_query("SELECT last_insert_rowid()", fetch="one")
-    return result["last_insert_rowid()"] if result else 0
+    return get_last_insert_id()
 
 
 def list_servers(is_active: bool = True) -> List[Dict[str, Any]]:
@@ -655,8 +721,7 @@ def add_alliance(alliance_name: str, server_id: Optional[int] = None) -> int:
         (alliance_name, server_id),
     )
 
-    result = execute_query("SELECT last_insert_rowid()", fetch="one")
-    return result["last_insert_rowid()"] if result else 0
+    return get_last_insert_id()
 
 
 def list_alliances(is_active: bool = True) -> List[Dict[str, Any]]:
@@ -688,8 +753,7 @@ def create_announcement(
         (title, content, category, 1 if is_pinned else 0, created_by),
     )
 
-    result = execute_query("SELECT last_insert_rowid()", fetch="one")
-    return result["last_insert_rowid()"] if result else 0
+    return get_last_insert_id()
 
 
 def get_announcement_by_id(announcement_id: int) -> Optional[Dict[str, Any]]:
@@ -815,8 +879,7 @@ def add_participant(data: Dict[str, Any]) -> int:
         ),
     )
 
-    result = execute_query("SELECT last_insert_rowid()", fetch="one")
-    return result["last_insert_rowid()"] if result else 0
+    return get_last_insert_id()
 
 
 def list_participants(event_name: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -863,14 +926,24 @@ def delete_participant(participant_id: int) -> bool:
 # ==================== Event Session Operations ====================
 
 
+def get_last_insert_id():
+    """Get last inserted ID (works with both SQLite and PostgreSQL)."""
+    if DB_TYPE == "postgresql":
+        result = execute_query("SELECT lastval() as lastval", fetch="one")
+        return result["lastval"] if result else 0
+    else:
+        result = execute_query("SELECT last_insert_rowid() as id", fetch="one")
+        return result["id"] if result else 0
+
+
 def create_session(
     session_number: int,
     session_name: str,
     session_date,
     max_participants: int,
     created_by: int,
-    reservation_open_time: str = None,
-    reservation_close_time: str = None,
+    reservation_open_time: Optional[str] = None,
+    reservation_close_time: Optional[str] = None,
 ):
     """Create session."""
     execute_query("UPDATE event_sessions SET is_active = 0")

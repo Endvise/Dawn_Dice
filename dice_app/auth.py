@@ -30,38 +30,31 @@ def init_session_state():
 
 def login(username: str, password: str) -> tuple[bool, str]:
     """
-    Attempt login with Supabase Auth.
-    Falls back to custom auth if Supabase is not configured.
+    Attempt login - authenticates against Supabase users table.
     Returns: (success, message)
     """
-    # Try Supabase Auth first
-    use_supabase_auth = st.secrets.get("USE_SUPABASE_AUTH", True)
+    # Try Supabase Auth first (if enabled)
+    use_supabase_auth = st.secrets.get("USE_SUPABASE_AUTH", False)
 
     if use_supabase_auth:
-        # For Supabase Auth, username should be email
         success, message, access_token = db.supabase_sign_in(username, password)
 
         if success and access_token:
-            # Get user info from Supabase
             user_data_success, user_data = db.supabase_get_user(access_token)
 
             if user_data_success and user_data:
-                # Find user in local database by email/supabase_id
-                # or create a minimal session
                 st.session_state[SESSION_KEYS["authenticated"]] = True
                 st.session_state[SESSION_KEYS["user_id"]] = user_data.get("id")
                 st.session_state[SESSION_KEYS["username"]] = username
-                st.session_state[SESSION_KEYS["role"]] = "user"  # Default role
+                st.session_state[SESSION_KEYS["role"]] = "user"
                 st.session_state[SESSION_KEYS["nickname"]] = ""
                 st.session_state[SESSION_KEYS["login_time"]] = datetime.now()
                 st.session_state[SESSION_KEYS["access_token"]] = access_token
-
                 return True, "Login successful!"
 
-        # If Supabase auth fails, try fallback to custom auth
-        st.warning("Supabase auth failed, trying legacy authentication...")
+        st.warning("Supabase Auth failed, using database authentication...")
 
-    # Fallback to custom database authentication
+    # Authenticate against users table in Supabase
     user = db.get_user_by_username(username)
 
     if not user:
@@ -87,14 +80,12 @@ def login(username: str, password: str) -> tuple[bool, str]:
     st.session_state[SESSION_KEYS["authenticated"]] = True
     st.session_state[SESSION_KEYS["user_id"]] = user["id"]
     st.session_state[SESSION_KEYS["username"]] = user.get("username") or user.get(
-        "commander_id"
+        "commander_number"
     )
-    st.session_state[SESSION_KEYS["role"]] = user["role"]
+    st.session_state[SESSION_KEYS["role"]] = user.get("role", "user")
     st.session_state[SESSION_KEYS["nickname"]] = user.get("nickname", "")
     st.session_state[SESSION_KEYS["login_time"]] = datetime.now()
-    st.session_state[SESSION_KEYS["access_token"]] = (
-        None  # No Supabase token for legacy auth
-    )
+    st.session_state[SESSION_KEYS["access_token"]] = None
 
     return True, "Login successful!"
 

@@ -153,10 +153,12 @@ def delete(table: str, params: Dict) -> bool:
 
 
 def init_database():
-    """Initialize database - verify Supabase connection."""
+    """Initialize database - verify Supabase connection and create master account if needed."""
     try:
         response = supabase_request("GET", "users", params={"select": "id", "limit": 1})
         if response.status_code == 200:
+            # Verify connection works, then initialize master account
+            _init_master_account()
             return True
         elif response.status_code == 401:
             st.error("Supabase API key is invalid. Please check your secrets.")
@@ -166,6 +168,35 @@ def init_database():
     except Exception as e:
         st.warning(f"Database connection warning: {e}")
         return True
+
+
+def _init_master_account():
+    """Initialize master account from secrets.toml if it doesn't exist."""
+    try:
+        master_username = st.secrets.get("MASTER_USERNAME")
+        master_password = st.secrets.get("MASTER_PASSWORD")
+
+        if not master_username or not master_password:
+            return
+
+        # Check if master account already exists
+        existing = fetch_one("users", {"role": "eq.master"})
+        if existing:
+            return  # Master already exists
+
+        # Create master account
+        # For master account, we'll use username as commander_number (special case)
+        create_user(
+            username=master_username,
+            commander_number="MASTER0000",  # Special ID for master
+            password=master_password,
+            role="master",
+            nickname="Master",
+            server="N/A",
+            alliance=None,
+        )
+    except Exception:
+        pass  # Silently fail - don't block app startup
 
 
 # ==================== User Operations ====================

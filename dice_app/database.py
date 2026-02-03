@@ -10,13 +10,22 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 import requests
 import json
-from supabase import create_client, Client
+
+# Optional Supabase SDK import (for Supabase Auth)
+try:
+    from supabase import create_client, Client
+
+    _SUPABASE_SDK_AVAILABLE = True
+except ImportError:
+    _SUPABASE_SDK_AVAILABLE = False
+    create_client = None
+    Client = None
 
 # Database configuration - lazy loading
 _DB_TYPE = None
 _SUPABASE_URL = None
 _SUPABASE_KEY = None
-_supabase_client: Optional[Client] = None
+_supabase_client = None  # Will hold Supabase Client if available
 
 
 def _get_config():
@@ -36,10 +45,12 @@ def _get_config():
     return _DB_TYPE, _SUPABASE_URL, _SUPABASE_KEY
 
 
-def get_supabase_client() -> Optional[Client]:
-    """Get or create Supabase client instance."""
+def get_supabase_client():
+    """Get or create Supabase client instance. Returns None if SDK not available."""
     global _supabase_client
     if _supabase_client is None:
+        if not _SUPABASE_SDK_AVAILABLE or not create_client:
+            return None
         try:
             _, supabase_url, supabase_key = _get_config()
             if supabase_key:

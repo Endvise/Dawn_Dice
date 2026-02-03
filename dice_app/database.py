@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Database Management Module - Supports both SQLite and PostgreSQL (Supabase)
+Database Management Module - Supports SQLite and PostgreSQL (Supabase)
 """
 
 import sqlite3
@@ -9,30 +9,10 @@ import bcrypt
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-from contextlib import contextmanager
-
-# Try to import SQLAlchemy for PostgreSQL
-try:
-    from sqlalchemy import (
-        create_engine,
-        text,
-        Column,
-        Integer,
-        String,
-        Text,
-        DateTime,
-        Boolean,
-        Float,
-    )
-    from sqlalchemy.orm import sessionmaker, declarative_base
-    from sqlalchemy import inspect
-
-    SQLALCHEMY_AVAILABLE = True
-except ImportError:
-    SQLALCHEMY_AVAILABLE = False
+import threading
 
 # Database configuration
-DB_TYPE = st.secrets.get("DB_TYPE", "sqlite")  # "sqlite" or "postgresql"
+DB_TYPE = st.secrets.get("DB_TYPE", "sqlite")
 
 # SQLite configuration
 DB_PATH = Path(st.secrets.get("DB_PATH", "data/dice_app.db"))
@@ -40,213 +20,179 @@ DB_PATH = Path(st.secrets.get("DB_PATH", "data/dice_app.db"))
 # PostgreSQL configuration (Supabase)
 DB_CONNECTION_STRING = st.secrets.get("DB_CONNECTION_STRING", "")
 
-# Engine and session management
-_engine = None
-_SessionLocal = None
+# Thread-local storage for connections
+_local = threading.local()
 
 
-def get_engine():
-    """Create and cache database engine."""
-    global _engine
-
-    if _engine is not None:
-        return _engine
-
-    if DB_TYPE == "postgresql" and DB_CONNECTION_STRING:
-        # PostgreSQL (Supabase)
-        _engine = create_engine(
-            DB_CONNECTION_STRING, pool_pre_ping=True, pool_recycle=3600
-        )
-    else:
-        # SQLite (fallback)
+def get_connection() -> sqlite3.Connection:
+    """Get database connection (thread-safe)."""
+    if not hasattr(_local, "connection") or _local.connection is None:
         DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _engine = create_engine(f"sqlite:///{DB_PATH}", pool_pre_ping=True)
-
-    return _engine
-
-
-def get_session():
-    """Get database session."""
-    global _SessionLocal
-
-    if _SessionLocal is None:
-        engine = get_engine()
-        _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-    return _SessionLocal()
-
-
-@contextmanager
-def get_db_connection():
-    """Context manager for database session."""
-    session = get_session()
-    try:
-        yield session
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
+        conn = sqlite3.connect(str(DB_PATH), check_same_thread=False, timeout=30)
+        conn.row_factory = sqlite3.Row
+        _local.connection = conn
+    return _local.connection
 
 
 def execute_query(query: str, params: tuple = (), fetch: bool | str = False) -> Any:
     """Execute SQL query."""
-    with get_db_connection() as session:
-        try:
-            # Convert tuple params to list for SQLAlchemy
-            if params:
-                params_list = list(params)
-            else:
-                params_list = []
+    conn = get_connection()
+    cursor = conn.cursor()
 
-            # Execute query
-            result = session.execute(text(query), params_list)
+    try:
+        cursor.execute(query, params)
 
-            if fetch:
-                if fetch == "one":
-                    row = result.fetchone()
-                    if row:
-                        return (
-                            dict(row._mapping)
-                            if hasattr(row, "_mapping")
-                            else dict(zip(result.keys(), row))
-                        )
-                    return None
-                elif fetch == "all":
-                    rows = result.fetchall()
-                    if rows:
-                        return [
-                            dict(row._mapping)
-                            if hasattr(row, "_mapping")
-                            else dict(zip(result.keys(), row))
-                            for row in rows
-                        ]
-                    return []
-                else:
-                    rows = result.fetchall()
-                    if rows:
-                        return [
-                            dict(row._mapping)
-                            if hasattr(row, "_mapping")
-                            else dict(zip(result.keys(), row))
-                            for row in rows
-                        ]
-                    return []
+        if fetch:
+            if fetch == "one":
+                result = cursor.fetchone()
+                if result:
+                    return dict(result)
+                return None
+            elif fetch == "all":
+                results = cursor.fetchall()
+                return [dict(row) for row in results] if results else []
             else:
-                return result
-        except Exception as e:
-            session.rollback()
-            st.error(f"Database error: {e}")
-            raise
+                results = cursor.fetchall()
+                return [dict(row) for row in results] if results else []
+
+        conn.commit()
+        return cursor
+
+    except sqlite3.OperationalError as e:
+        conn.rollback()
+        st.error(f"Database error: {e}")
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise
 
 
 def init_database():
     """Initialize database tables."""
-    # Create tables using SQLAlchemy
-    engine = get_engine()
-    Base = declarative_base()
+    # Users 테이블
+    execute_query("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE,
+            commander_id TEXT UNIQUE,
+            password_hash TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'user',
+            nickname TEXT,
+            server TEXT,
+            alliance TEXT,
+            is_active INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_login TIMESTAMP,
+            failed_attempts INTEGER DEFAULT 0
+        )
+    """)
 
-    class Users(Base):
-        __tablename__ = "users"
-        id = Column(Integer, primary_key=True, autoincrement=True)
-        username = Column(String(255), unique=True, nullable=True)
-        commander_id = Column(String(50), unique=True, nullable=True)
-        password_hash = Column(String(255), nullable=False)
-        role = Column(String(50), default="user")
-        nickname = Column(String(255))
-        server = Column(String(255))
-        alliance = Column(String(255))
-        is_active = Column(Integer, default=1)
-        created_at = Column(DateTime, default=datetime.now)
-        last_login = Column(DateTime)
-        failed_attempts = Column(Integer, default=0)
+    # Reservations 테이블
+    execute_query("""
+        CREATE TABLE IF NOT EXISTS reservations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            nickname TEXT NOT NULL,
+            commander_id TEXT NOT NULL,
+            server TEXT NOT NULL,
+            alliance TEXT,
+            status TEXT DEFAULT 'pending',
+            is_blacklisted INTEGER DEFAULT 0,
+            blacklist_reason TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            approved_at TIMESTAMP,
+            approved_by INTEGER,
+            notes TEXT,
+            waitlist_order INTEGER,
+            waitlist_position INTEGER
+        )
+    """)
 
-    class Reservations(Base):
-        __tablename__ = "reservations"
-        id = Column(Integer, primary_key=True, autoincrement=True)
-        user_id = Column(Integer)
-        nickname = Column(String(255), nullable=False)
-        commander_id = Column(String(50), nullable=False)
-        server = Column(String(255), nullable=False)
-        alliance = Column(String(255))
-        status = Column(String(50), default="pending")
-        is_blacklisted = Column(Integer, default=0)
-        blacklist_reason = Column(Text)
-        created_at = Column(DateTime, default=datetime.now)
-        approved_at = Column(DateTime)
-        approved_by = Column(Integer)
-        notes = Column(Text)
-        waitlist_order = Column(Integer)
-        waitlist_position = Column(Integer)
+    # Blacklist 테이블
+    execute_query("""
+        CREATE TABLE IF NOT EXISTS blacklist (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            commander_id TEXT UNIQUE NOT NULL,
+            nickname TEXT,
+            reason TEXT,
+            added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            added_by INTEGER,
+            is_active INTEGER DEFAULT 1
+        )
+    """)
 
-    class Blacklist(Base):
-        __tablename__ = "blacklist"
-        id = Column(Integer, primary_key=True, autoincrement=True)
-        commander_id = Column(String(50), unique=True, nullable=False)
-        nickname = Column(String(255))
-        reason = Column(Text)
-        added_at = Column(DateTime, default=datetime.now)
-        added_by = Column(Integer)
-        is_active = Column(Integer, default=1)
+    # Servers 테이블
+    execute_query("""
+        CREATE TABLE IF NOT EXISTS servers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            server_name TEXT UNIQUE NOT NULL,
+            server_code TEXT UNIQUE,
+            is_active INTEGER DEFAULT 1
+        )
+    """)
 
-    class Servers(Base):
-        __tablename__ = "servers"
-        id = Column(Integer, primary_key=True, autoincrement=True)
-        server_name = Column(String(255), unique=True, nullable=False)
-        server_code = Column(String(50), unique=True)
-        is_active = Column(Integer, default=1)
+    # Alliances 테이블
+    execute_query("""
+        CREATE TABLE IF NOT EXISTS alliances (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            alliance_name TEXT UNIQUE NOT NULL,
+            server_id INTEGER,
+            is_active INTEGER DEFAULT 1
+        )
+    """)
 
-    class Alliances(Base):
-        __tablename__ = "alliances"
-        id = Column(Integer, primary_key=True, autoincrement=True)
-        alliance_name = Column(String(255), unique=True, nullable=False)
-        server_id = Column(Integer)
-        is_active = Column(Integer, default=1)
+    # Participants 테이블
+    execute_query("""
+        CREATE TABLE IF NOT EXISTS participants (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            number INTEGER,
+            nickname TEXT,
+            affiliation TEXT,
+            igg_id TEXT,
+            alliance TEXT,
+            wait_confirmed INTEGER DEFAULT 0,
+            confirmed INTEGER DEFAULT 0,
+            notes TEXT,
+            completed INTEGER DEFAULT 0,
+            participation_record TEXT,
+            event_name TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
 
-    class Participants(Base):
-        __tablename__ = "participants"
-        id = Column(Integer, primary_key=True, autoincrement=True)
-        number = Column(Integer)
-        nickname = Column(String(255))
-        affiliation = Column(String(255))
-        igg_id = Column(String(50))
-        alliance = Column(String(255))
-        wait_confirmed = Column(Integer, default=0)
-        confirmed = Column(Integer, default=0)
-        notes = Column(Text)
-        completed = Column(Integer, default=0)
-        participation_record = Column(Text)
-        event_name = Column(String(255))
-        created_at = Column(DateTime, default=datetime.now)
+    # Announcements 테이블
+    execute_query("""
+        CREATE TABLE IF NOT EXISTS announcements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            category TEXT DEFAULT 'notice',
+            is_pinned INTEGER DEFAULT 0,
+            created_by INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP,
+            is_active INTEGER DEFAULT 1
+        )
+    """)
 
-    class Announcements(Base):
-        __tablename__ = "announcements"
-        id = Column(Integer, primary_key=True, autoincrement=True)
-        title = Column(String(255), nullable=False)
-        content = Column(Text, nullable=False)
-        category = Column(String(50), default="notice")
-        is_pinned = Column(Integer, default=0)
-        created_by = Column(Integer)
-        created_at = Column(DateTime, default=datetime.now)
-        updated_at = Column(DateTime)
-        is_active = Column(Integer, default=1)
+    # Event Sessions 테이블
+    execute_query("""
+        CREATE TABLE IF NOT EXISTS event_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_number INTEGER,
+            session_name TEXT,
+            session_date DATE,
+            max_participants INTEGER DEFAULT 180,
+            reservation_open_time DATETIME,
+            reservation_close_time DATETIME,
+            is_active INTEGER DEFAULT 1,
+            created_by INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
 
-    class EventSessions(Base):
-        __tablename__ = "event_sessions"
-        id = Column(Integer, primary_key=True, autoincrement=True)
-        session_number = Column(Integer)
-        session_name = Column(String(255))
-        session_date = Column(DateTime)
-        max_participants = Column(Integer, default=180)
-        reservation_open_time = Column(DateTime)
-        reservation_close_time = Column(DateTime)
-        is_active = Column(Integer, default=1)
-        created_by = Column(Integer)
-        created_at = Column(DateTime, default=datetime.now)
-
-    # Create all tables
-    Base.metadata.create_all(bind=engine)
+    # 인덱스 생성
+    create_indexes()
 
 
 def create_indexes():
@@ -255,7 +201,6 @@ def create_indexes():
         "CREATE INDEX IF NOT EXISTS idx_users_commander_id ON users(commander_id)",
         "CREATE INDEX IF NOT EXISTS idx_reservations_user_id ON reservations(user_id)",
         "CREATE INDEX IF NOT EXISTS idx_reservations_status ON reservations(status)",
-        "CREATE INDEX IF NOT EXISTS idx_reservations_commander_id ON reservations(commander_id)",
         "CREATE INDEX IF NOT EXISTS idx_blacklist_commander_id ON blacklist(commander_id)",
         "CREATE INDEX IF NOT EXISTS idx_participants_igg_id ON participants(igg_id)",
         "CREATE INDEX IF NOT EXISTS idx_event_sessions_is_active ON event_sessions(is_active)",
@@ -265,7 +210,7 @@ def create_indexes():
         try:
             execute_query(idx_query)
         except:
-            pass  # Index may already exist
+            pass
 
 
 # ==================== User Operations ====================
@@ -295,7 +240,7 @@ def create_user(
     """Create user."""
     password_hash = hash_password(password)
 
-    result = execute_query(
+    execute_query(
         """
         INSERT INTO users (username, commander_id, password_hash, role, nickname, server, alliance)
         VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -303,15 +248,8 @@ def create_user(
         (username, commander_id, password_hash, role, nickname, server, alliance),
     )
 
-    # Get the inserted ID
-    inserted = execute_query("SELECT last_insert_rowid()", fetch="one")
-    if inserted and isinstance(inserted, dict):
-        return (
-            inserted.get("last_insert_rowid()", inserted.get("last_insert_rowid")) or 0
-        )
-    elif inserted:
-        return inserted[0] if isinstance(inserted, tuple) else 0
-    return 0
+    result = execute_query("SELECT last_insert_rowid()", fetch="one")
+    return result["last_insert_rowid()"] if result else 0
 
 
 def get_user_by_username(username: str) -> Optional[Dict[str, Any]]:
@@ -398,26 +336,20 @@ def create_reservation(
     notes: Optional[str] = None,
 ) -> int:
     """Create reservation."""
-    # Check blacklist
     blacklisted = check_blacklist(commander_id)
 
-    # Check existing participants count
     result = execute_query(
         "SELECT COUNT(*) as count FROM participants WHERE completed = 1", fetch="one"
     )
     participants_count = result.get("count", 0) if result else 0
 
-    # Check approved reservations count
     result = execute_query(
         "SELECT COUNT(*) as count FROM reservations WHERE status = 'approved'",
         fetch="one",
     )
     approved_reservations_count = result.get("count", 0) if result else 0
 
-    # Total participants
     total_count = participants_count + approved_reservations_count
-
-    # Determine waitlist status
     is_waitlisted = total_count >= MAX_PARTICIPANTS
 
     waitlist_order = None
@@ -458,15 +390,8 @@ def create_reservation(
         ),
     )
 
-    # Get inserted ID
-    inserted = execute_query("SELECT last_insert_rowid()", fetch="one")
-    if inserted and isinstance(inserted, dict):
-        return (
-            inserted.get("last_insert_rowid()", inserted.get("last_insert_rowid")) or 0
-        )
-    elif inserted:
-        return inserted[0] if isinstance(inserted, tuple) else 0
-    return 0
+    result = execute_query("SELECT last_insert_rowid()", fetch="one")
+    return result["last_insert_rowid()"] if result else 0
 
 
 def get_reservation_by_id(reservation_id: int) -> Optional[Dict[str, Any]]:
@@ -559,7 +484,6 @@ def add_to_blacklist(
         (commander_id, nickname, reason, added_by),
     )
 
-    # Update existing reservations
     execute_query(
         """
         UPDATE reservations
@@ -569,20 +493,12 @@ def add_to_blacklist(
         (reason, commander_id),
     )
 
-    # Get inserted ID
-    inserted = execute_query("SELECT last_insert_rowid()", fetch="one")
-    if inserted and isinstance(inserted, dict):
-        return (
-            inserted.get("last_insert_rowid()", inserted.get("last_insert_rowid")) or 0
-        )
-    elif inserted:
-        return inserted[0] if isinstance(inserted, tuple) else 0
-    return 0
+    result = execute_query("SELECT last_insert_rowid()", fetch="one")
+    return result["last_insert_rowid()"] if result else 0
 
 
 def check_blacklist(commander_id: str) -> Optional[Dict[str, Any]]:
     """Check blacklist (local + Google Sheets)."""
-    # Check local blacklist
     result = execute_query(
         "SELECT * FROM blacklist WHERE commander_id = ? AND is_active = 1",
         (commander_id,),
@@ -592,7 +508,7 @@ def check_blacklist(commander_id: str) -> Optional[Dict[str, Any]]:
     if result:
         return result
 
-    # Check Google Sheets blacklist
+    # Check Google Sheets
     try:
         import requests
 
@@ -624,8 +540,6 @@ def check_blacklist(commander_id: str) -> Optional[Dict[str, Any]]:
 
                 commander_id_str = str(commander_id)
 
-                # Find ID column
-                id_columns = []
                 for col in df.columns:
                     col_lower = str(col).lower()
                     if (
@@ -640,27 +554,22 @@ def check_blacklist(commander_id: str) -> Optional[Dict[str, Any]]:
                             )
                         )
                     ):
-                        id_columns.append(col)
+                        try:
+                            col_data = df[col].astype(str).str.strip()
+                            matched_rows = df[col_data == commander_id_str]
 
-                # Exact match
-                for col in id_columns:
-                    try:
-                        col_data = df[col].astype(str).str.strip()
-                        matched_rows = df[col_data == commander_id_str]
+                            if not matched_rows.empty:
+                                idx = matched_rows.index[0]
+                                return {
+                                    "commander_id": commander_id,
+                                    "nickname": df.iloc[idx].get("nickname", ""),
+                                    "reason": "Google Sheets blacklist",
+                                    "is_active": 1,
+                                    "source": "Google Sheets",
+                                }
+                        except Exception:
+                            continue
 
-                        if not matched_rows.empty:
-                            idx = matched_rows.index[0]
-                            return {
-                                "commander_id": commander_id,
-                                "nickname": df.iloc[idx].get("nickname", ""),
-                                "reason": "Google Sheets blacklist",
-                                "is_active": 1,
-                                "source": "Google Sheets",
-                            }
-                    except Exception:
-                        continue
-
-                # Partial match
                 for col in df.columns:
                     if any(
                         keyword in str(col).lower()
@@ -722,14 +631,8 @@ def add_server(server_name: str, server_code: Optional[str] = None) -> int:
         (server_name, server_code),
     )
 
-    inserted = execute_query("SELECT last_insert_rowid()", fetch="one")
-    if inserted and isinstance(inserted, dict):
-        return (
-            inserted.get("last_insert_rowid()", inserted.get("last_insert_rowid")) or 0
-        )
-    elif inserted:
-        return inserted[0] if isinstance(inserted, tuple) else 0
-    return 0
+    result = execute_query("SELECT last_insert_rowid()", fetch="one")
+    return result["last_insert_rowid()"] if result else 0
 
 
 def list_servers(is_active: bool = True) -> List[Dict[str, Any]]:
@@ -752,14 +655,8 @@ def add_alliance(alliance_name: str, server_id: Optional[int] = None) -> int:
         (alliance_name, server_id),
     )
 
-    inserted = execute_query("SELECT last_insert_rowid()", fetch="one")
-    if inserted and isinstance(inserted, dict):
-        return (
-            inserted.get("last_insert_rowid()", inserted.get("last_insert_rowid")) or 0
-        )
-    elif inserted:
-        return inserted[0] if isinstance(inserted, tuple) else 0
-    return 0
+    result = execute_query("SELECT last_insert_rowid()", fetch="one")
+    return result["last_insert_rowid()"] if result else 0
 
 
 def list_alliances(is_active: bool = True) -> List[Dict[str, Any]]:
@@ -791,14 +688,8 @@ def create_announcement(
         (title, content, category, 1 if is_pinned else 0, created_by),
     )
 
-    inserted = execute_query("SELECT last_insert_rowid()", fetch="one")
-    if inserted and isinstance(inserted, dict):
-        return (
-            inserted.get("last_insert_rowid()", inserted.get("last_insert_rowid")) or 0
-        )
-    elif inserted:
-        return inserted[0] if isinstance(inserted, tuple) else 0
-    return 0
+    result = execute_query("SELECT last_insert_rowid()", fetch="one")
+    return result["last_insert_rowid()"] if result else 0
 
 
 def get_announcement_by_id(announcement_id: int) -> Optional[Dict[str, Any]]:
@@ -924,14 +815,8 @@ def add_participant(data: Dict[str, Any]) -> int:
         ),
     )
 
-    inserted = execute_query("SELECT last_insert_rowid()", fetch="one")
-    if inserted and isinstance(inserted, dict):
-        return (
-            inserted.get("last_insert_rowid()", inserted.get("last_insert_rowid")) or 0
-        )
-    elif inserted:
-        return inserted[0] if isinstance(inserted, tuple) else 0
-    return 0
+    result = execute_query("SELECT last_insert_rowid()", fetch="one")
+    return result["last_insert_rowid()"] if result else 0
 
 
 def list_participants(event_name: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -1134,10 +1019,8 @@ def initialize_master_account():
 def init_app():
     """Initialize app."""
     init_database()
-    create_indexes()
     initialize_master_account()
 
-    # Add default servers
     default_servers = [
         "#095 woLF",
         "#708 아시아",

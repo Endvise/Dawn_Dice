@@ -443,7 +443,7 @@ def show():
                         if user
                         else "home_go_to_reservation",
                     ):
-                        st.session_state["page"] = "📝 예약 신청"
+                        st.session_state["page"] = "📝 Make Reservation"
                         st.rerun()
                 elif status["is_reservation_closed"]:
                     st.error("⛔ Reservation is closed for this session.")
@@ -465,7 +465,7 @@ def show():
                     if user
                     else "home_go_to_reservation",
                 ):
-                    st.session_state["page"] = "📝 예약 신청"
+                    st.session_state["page"] = "📝 Make Reservation"
                     st.rerun()
 
     else:

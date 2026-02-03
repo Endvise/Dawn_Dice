@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-주사위 예약 시스템 메인 애플리케이션
+DaWn Dice Party - Main Application
 """
 
 import streamlit as st
@@ -10,8 +10,8 @@ import security_utils
 
 
 def main():
-    """메인 애플리케이션"""
-    # 페이지 설정
+    """Main application"""
+    # Page settings
     st.set_page_config(
         page_title="DaWn Dice Party",
         page_icon="🎲",
@@ -19,115 +19,116 @@ def main():
         initial_sidebar_state="expanded",
     )
 
-    # 앱 초기화
+    # App initialization
     db.init_app()
 
-    # 세션 초기화
+    # Session initialization
     auth.init_session_state()
 
-    # 개발자 도구 방지 (관리자 제외)
+    # Developer tools block (except admin)
     security_utils.inject_devtools_block()
 
-    # 사이드바
+    # Sidebar
     with st.sidebar:
         st.title("🎲 DaWn Dice Party")
-        st.markdown("by 엔티티")
+        st.markdown("by Entity")
         st.markdown("---")
 
-        # 페이지 선택 (로그인 상태에 따라)
+        # Page selection (based on login status)
         if auth.is_authenticated():
-            st.markdown("### 📋 메뉴")
+            st.markdown("### 📋 Menu")
 
-            # 일반 사용자/관리자/마스터 공통 메뉴
+            # General user/admin/master common menu
             if auth.is_admin():
-                # 관리자용 페이지 선택 (모든 관리자 메뉴)
+                # Admin page selection (Korean for admin)
                 page = st.radio(
                     "관리자 페이지 선택",
                     [
-                        "🏠 홈",
-                        "📝 예약 신청",
-                        "📊 내 예약 현황",
-                        "📊 대시보드",
-                        "🎲 회차 관리",
-                        "📋 예약 관리",
-                        "👥 참여자 관리",
-                        "🚫 블랙리스트 관리",
-                        "📢 공지사항 관리",
+                        "🏠 Home",
+                        "📝 Make Reservation",
+                        "📊 My Reservations",
+                        "📊 Dashboard",
+                        "🎲 Session Management",
+                        "📋 Reservation Management",
+                        "👥 Participant Management",
+                        "🚫 Blacklist Management",
+                        "📢 Announcement Management",
                     ],
                 )
             else:
-                # 일반 사용자 메뉴
+                # General user menu (English)
                 page = st.radio(
-                    "페이지 선택", ["🏠 홈", "📝 예약 신청", "📊 내 예약 현황"]
+                    "Select Page",
+                    ["🏠 Home", "📝 Make Reservation", "📊 My Reservations"],
                 )
 
-            # 관리자 페이지 변수 (이전 버전과 호환성)
+            # Admin page variable (compatibility)
             admin_page = None
             if auth.is_admin() and page in [
-                "📊 대시보드",
-                "🎲 회차 관리",
-                "📋 예약 관리",
-                "👥 참여자 관리",
-                "🚫 블랙리스트 관리",
-                "📢 공지사항 관리",
+                "📊 Dashboard",
+                "🎲 Session Management",
+                "📋 Reservation Management",
+                "👥 Participant Management",
+                "🚫 Blacklist Management",
+                "📢 Announcement Management",
             ]:
-                admin_page = page  # 호환성 유지
+                admin_page = page
 
-            # 마스터 전용 메뉴
+            # Master-only menu
             if auth.is_master():
                 st.markdown("---")
-                st.markdown("### 👑 마스터 메뉴")
-                if st.button("👤 관리자 계정 관리"):
+                st.markdown("### 👑 Master Menu")
+                if st.button("👤 Admin Account Management"):
                     st.session_state["page"] = "admin_management"
                     st.rerun()
 
-            # 사용자 정보
+            # User info
             auth.show_user_info()
         else:
-            st.markdown("### 📋 메뉴")
-            page = "로그인"
+            st.markdown("### 📋 Menu")
+            page = "Login"
 
-    # 메인 컨텐츠 영역
+    # Main content area
     if auth.is_authenticated():
-        # 페이지별 라우팅
-        if page == "🏠 홈":
+        # Page routing
+        if page == "🏠 Home":
             import views.home
 
             views.home.show()
-        elif page == "📝 예약 신청":
+        elif page == "📝 Make Reservation":
             import views.reservation
 
             views.reservation.show()
-        elif page == "📊 내 예약 현황":
+        elif page == "📊 My Reservations":
             import views.my_reservations
 
             views.my_reservations.show()
-        elif page == "📊 대시보드":
+        elif page == "📊 Dashboard":
             import views.admin_dashboard
 
             views.admin_dashboard.show()
-        elif page == "🎲 회차 관리":
+        elif page == "🎲 Session Management":
             import views.event_sessions
 
             views.event_sessions.show()
-        elif page == "📋 예약 관리":
+        elif page == "📋 Reservation Management":
             import views.admin_reservations
 
             views.admin_reservations.show()
-        elif page == "👥 참여자 관리":
+        elif page == "👥 Participant Management":
             import views.admin_participants
 
             views.admin_participants.show()
-        elif page == "🚫 블랙리스트 관리":
+        elif page == "🚫 Blacklist Management":
             import views.admin_blacklist
 
             views.admin_blacklist.show()
-        elif page == "📢 공지사항 관리":
+        elif page == "📢 Announcement Management":
             import views.admin_announcements
 
             views.admin_announcements.show()
 
-        # 마스터 전용 페이지
+        # Master-only page
         if auth.is_master():
             if st.session_state.get("page") == "admin_management":
                 import views.master_admin
@@ -135,13 +136,13 @@ def main():
                 views.master_admin.show()
 
     else:
-        # 로그인 전 처리
+        # Pre-login handling
         if st.session_state.get("show_register"):
             import views.register
 
             views.register.show()
         else:
-            # 홈페이지
+            # Homepage
             import views.home
 
             views.home.show()

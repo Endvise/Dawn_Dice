@@ -17,133 +17,59 @@ def show():
     st.title("My Reservations")
     st.markdown("---")
 
-    # Statistics
+    # Get my reservations
     my_reservations = db.list_reservations(user_id=user["id"])
 
-    col1, col2, col3, col4 = st.columns(4)
+    if not my_reservations:
+        st.info("No reservations found.")
+        return
 
-    with col1:
-        st.metric("Total", len(my_reservations))
-
-    with col2:
-        pending = len([r for r in my_reservations if r["status"] == "pending"])
-        st.metric("Pending", pending)
-
-    with col3:
-        approved = len([r for r in my_reservations if r["status"] == "approved"])
-        st.metric("Approved", approved)
-
-    with col4:
-        rejected = len([r for r in my_reservations if r["status"] == "rejected"])
-        st.metric("Rejected", rejected)
-
-    st.markdown("---")
-
-    # Filter
-    st.markdown("### Filter")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        status_filter = st.selectbox(
-            "Status Filter",
-            ["All", "Pending", "Approved", "Rejected", "Cancelled"],
-            key="status_filter",
-        )
-
-    with col2:
-        blacklist_filter = st.selectbox(
-            "Blacklist Filter", ["All", "Blacklisted", "Normal"], key="blacklist_filter"
-        )
-
-    st.markdown("---")
-
-    # Reservation list
-    filtered_reservations = []
-
+    # Show each reservation with status
     for res in my_reservations:
-        # Waitlist info
-        waitlist_info = ""
-        if res.get("status") == "waitlisted":
-            waitlist_order = res.get("waitlist_order")
-            waitlist_position = res.get("waitlist_position")
-            waitlist_info = (
-                f" (Waitlist: #{waitlist_order} / Current: #{waitlist_position})"
-            )
+        # Status display
+        status = res["status"]
 
-        status_color = {
-            "pending": "🟡 PENDING",
-            "approved": "🟢 APPROVED",
-            "rejected": "🔴 REJECTED",
-            "cancelled": "⚪ CANCELLED",
-            "waitlisted": "🔵 WAITLISTED",
-        }
-        status_label = status_color.get(res["status"], res["status"].upper())
+        if status == "approved":
+            status_icon = "✅"
+            status_text = "Approved"
+        elif status == "pending":
+            status_icon = "⏳"
+            status_text = "Pending"
+        elif status == "rejected":
+            status_icon = "❌"
+            status_text = "Rejected"
+        elif status == "cancelled":
+            status_icon = "⚪"
+            status_text = "Cancelled"
+        elif status == "waitlisted":
+            status_icon = "🔵"
+            waitlist_order = res.get("waitlist_order", 0)
+            status_text = f"Waitlisted (Order: {waitlist_order})"
+        else:
+            status_icon = "⚪"
+            status_text = status
 
-        # Reservation card
-        with st.expander(
-            f"{status_label}{waitlist_info} - {res['created_at'][:19]} (ID: {res['id']})"
-        ):
-            col1, col2 = st.columns([2, 1])
+        # Date
+        created_at = res["created_at"][:10] if res.get("created_at") else ""
 
-            with col1:
-                st.markdown(f"""
-                **Nickname**: {res["nickname"]}
-                **Commander ID**: {res["commander_id"]}
-                **Server**: {res["server"]}
-                **Alliance**: {res["alliance"] if res["alliance"] else "None"}
-                **Applied At**: {res["created_at"]}
-                **Status**: {res["status"]}
-                """)
-
-                if res.get("approved_at"):
-                    st.markdown(f"**Approved At**: {res['approved_at']}")
-
-                if res.get("waitlist_order"):
-                    st.info(f"🔵 Waitlist Number: {res.get('waitlist_order')}")
-
-                if res.get("notes"):
-                    st.text(f"**Notes**: {res['notes']}")
-
-                if res.get("is_blacklisted"):
-                    st.warning(f"⚠️ **Blacklist**: {res.get('blacklist_reason', 'N/A')}")
-
-            with col2:
-                # Cancel button (only when pending)
-                if res["status"] == "pending":
-                    if st.button(
-                        "Cancel",
-                        key=f"cancel_{res['id']}",
-                        use_container_width=True,
-                    ):
-                        try:
-                            db.cancel_reservation(res["id"])
-                            st.success("Reservation cancelled.")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Error cancelling: {e}")
-
-                # Approver info
-                if res.get("approved_by"):
-                    approver = db.get_user_by_id(res["approved_by"])
-                    if approver:
-                        st.info(
-                            f"Approved by: {approver.get('nickname', approver.get('username', 'Unknown'))}"
-                        )
-
-    else:
-        st.info("No reservations to display.")
+        # Simple card display
+        st.markdown(
+            f"""
+<div style="padding: 15px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 10px;">
+    <strong>{status_icon} {status_text}</strong> &nbsp;|&nbsp; {created_at}
+</div>
+""",
+            unsafe_allow_html=True,
+        )
 
     st.markdown("---")
 
-    # Guide message
+    # Legend
     st.markdown("""
-    ### Guide
-
-    - **Pending**: Waiting for admin approval
-    - **Approved**: Reservation approved
-    - **Rejected**: Rejected by admin
-    - **Cancelled**: Cancelled by user
-
-    Commander IDs on the blacklist cannot make reservations.
-    """)
+**Reservation Status Guide**
+- **Approved**: Reservation confirmed
+- **Pending**: Waiting for admin approval
+- **Rejected**: Reservation rejected by admin
+- **Cancelled**: Cancelled by user
+- **Waitlisted**: Added to waitlist due to full capacity
+""")

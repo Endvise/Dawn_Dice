@@ -74,115 +74,129 @@ DB_PATH = "./data/dice_app.db"
 2. Find "Connection string" (URI)
 3. Copy the format: `postgresql://postgres:[password]@db.[project].supabase.co:5432/postgres`
 
-#### Create Tables
-The app will auto-create tables on first run. For manual setup, run:
-```sql
--- Users 테이블
-CREATE TABLE IF NOT EXISTS users (
-    id SERIAL PRIMARY KEY,
-    username TEXT UNIQUE,
-    commander_id TEXT UNIQUE,
-    password_hash TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'user',
-    nickname TEXT,
-    server TEXT,
-    alliance TEXT,
-    is_active INTEGER DEFAULT 1,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    last_login TIMESTAMP,
-    failed_attempts INTEGER DEFAULT 0
-);
+#### For Supabase (REST API - Recommended):
+**Pros**: Simple HTTP API, no driver issues, works well with Streamlit Cloud
+**Cons**: Requires Supabase account
 
--- Reservations 테이블
-CREATE TABLE IF NOT EXISTS reservations (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER,
-    nickname TEXT NOT NULL,
-    commander_id TEXT NOT NULL,
-    server TEXT NOT NULL,
-    alliance TEXT,
-    status TEXT DEFAULT 'pending',
-    is_blacklisted INTEGER DEFAULT 0,
-    blacklist_reason TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    approved_at TIMESTAMP,
-    approved_by INTEGER,
-    notes TEXT,
-    waitlist_order INTEGER,
-    waitlist_position INTEGER
-);
+#### Get Supabase Credentials:
+1. Go to https://supabase.com and sign up
+2. Create a new project
+3. Go to Project Settings → API
+4. Copy:
+   - **URL**: `https://your-project.supabase.co`
+   - **anon key**: `eyJ...` (public key, safe to expose)
 
--- Blacklist 테이블
-CREATE TABLE IF NOT EXISTS blacklist (
-    id SERIAL PRIMARY KEY,
-    commander_id TEXT UNIQUE NOT NULL,
-    nickname TEXT,
-    reason TEXT,
-    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    added_by INTEGER,
-    is_active INTEGER DEFAULT 1
-);
+#### Create Tables in Supabase Dashboard:
+1. Go to Table Editor in Supabase dashboard
+2. Create the following tables:
 
--- Participants 테이블
-CREATE TABLE IF NOT EXISTS participants (
-    id SERIAL PRIMARY KEY,
-    number INTEGER,
-    nickname TEXT,
-    affiliation TEXT,
-    igg_id TEXT,
-    alliance TEXT,
-    wait_confirmed INTEGER DEFAULT 0,
-    confirmed INTEGER DEFAULT 0,
-    notes TEXT,
-    completed INTEGER DEFAULT 0,
-    participation_record TEXT,
-    event_name TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+**users table:**
+| Column | Type | Notes |
+|--------|------|-------|
+| id | int8 | Primary key, auto-generated |
+| username | text | Unique |
+| commander_id | text | Unique |
+| password_hash | text | |
+| role | text | Default: 'user' |
+| nickname | text | |
+| server | text | |
+| alliance | text | |
+| is_active | int4 | Default: 1 |
+| created_at | timestamptz | Default: now() |
+| last_login | timestamptz | |
+| failed_attempts | int4 | Default: 0 |
 
--- Announcements 테이블
-CREATE TABLE IF NOT EXISTS announcements (
-    id SERIAL PRIMARY KEY,
-    title TEXT NOT NULL,
-    content TEXT NOT NULL,
-    category TEXT DEFAULT 'notice',
-    is_pinned INTEGER DEFAULT 0,
-    created_by INTEGER,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP,
-    is_active INTEGER DEFAULT 1
-);
+**reservations table:**
+| Column | Type | Notes |
+|--------|------|-------|
+| id | int8 | Primary key |
+| user_id | int4 | |
+| nickname | text | |
+| commander_id | text | |
+| server | text | |
+| alliance | text | |
+| status | text | Default: 'pending' |
+| is_blacklisted | int4 | Default: 0 |
+| blacklist_reason | text | |
+| created_at | timestamptz | Default: now() |
+| approved_at | timestamptz | |
+| approved_by | int4 | |
+| notes | text | |
+| waitlist_order | int4 | |
+| waitlist_position | int4 | |
 
--- Event Sessions 테이블
-CREATE TABLE IF NOT EXISTS event_sessions (
-    id SERIAL PRIMARY KEY,
-    session_number INTEGER,
-    session_name TEXT,
-    session_date DATE,
-    max_participants INTEGER DEFAULT 180,
-    reservation_open_time DATETIME,
-    reservation_close_time DATETIME,
-    is_active INTEGER DEFAULT 1,
-    created_by INTEGER,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+**blacklist table:**
+| Column | Type | Notes |
+|--------|------|-------|
+| id | int8 | Primary key |
+| commander_id | text | Unique |
+| nickname | text | |
+| reason | text | |
+| added_at | timestamptz | Default: now() |
+| added_by | int4 | |
+| is_active | int4 | Default: 1 |
 
--- Servers 테이블
-CREATE TABLE IF NOT EXISTS servers (
-    id SERIAL PRIMARY KEY,
-    server_name TEXT UNIQUE NOT NULL,
-    server_code TEXT UNIQUE,
-    is_active INTEGER DEFAULT 1
-);
+**participants table:**
+| Column | Type | Notes |
+|--------|------|-------|
+| id | int8 | Primary key |
+| number | int4 | |
+| nickname | text | |
+| affiliation | text | |
+| igg_id | text | |
+| alliance | text | |
+| wait_confirmed | int4 | Default: 0 |
+| confirmed | int4 | Default: 0 |
+| notes | text | |
+| completed | int4 | Default: 0 |
+| participation_record | text | |
+| event_name | text | |
+| created_at | timestamptz | Default: now() |
 
--- Alliances 테이블
-CREATE TABLE IF NOT EXISTS alliances (
-    id SERIAL PRIMARY KEY,
-    alliance_name TEXT UNIQUE NOT NULL,
-    server_id INTEGER,
-    is_active INTEGER DEFAULT 1
-);
-```
+**announcements table:**
+| Column | Type | Notes |
+|--------|------|-------|
+| id | int8 | Primary key |
+| title | text | |
+| content | text | |
+| category | text | Default: 'notice' |
+| is_pinned | int4 | Default: 0 |
+| created_by | int4 | |
+| created_at | timestamptz | Default: now() |
+| updated_at | timestamptz | |
+| is_active | int4 | Default: 1 |
+
+**event_sessions table:**
+| Column | Type | Notes |
+|--------|------|-------|
+| id | int8 | Primary key |
+| session_number | int4 | |
+| session_name | text | |
+| session_date | date | |
+| max_participants | int4 | Default: 180 |
+| reservation_open_time | timestamptz | |
+| reservation_close_time | timestamptz | |
+| is_active | int4 | Default: 1 |
+| created_by | int4 | |
+| created_at | timestamptz | Default: now() |
+
+**servers table:**
+| Column | Type | Notes |
+|--------|------|-------|
+| id | int8 | Primary key |
+| server_name | text | Unique |
+| server_code | text | Unique |
+| is_active | int4 | Default: 1 |
+
+**alliances table:**
+| Column | Type | Notes |
+|--------|------|-------|
+| id | int8 | Primary key |
+| alliance_name | text | Unique |
+| server_id | int4 | |
+| is_active | int4 | Default: 1 |
+
+Enable RLS (Row Level Security) on all tables for security.
 
 ---
 
@@ -199,15 +213,16 @@ CREATE TABLE IF NOT EXISTS alliances (
 
 ### 5. Configure Secrets in Streamlit Cloud
 
-#### For Supabase/PostgreSQL:
+#### For Supabase (REST API):
 Add these secrets in Streamlit Cloud settings:
 
 | Key | Value | Description |
 |------|--------|-------------|
 | `MASTER_USERNAME` | `DaWnntt0623` | Master admin username |
 | `MASTER_PASSWORD` | `your_password` | Master admin password |
-| `DB_TYPE` | `postgresql` | Database type |
-| `DB_CONNECTION_STRING` | `postgresql://...` | Supabase connection string |
+| `DB_TYPE` | `supabase` | Database type |
+| `SUPABASE_URL` | `https://your-project.supabase.co` | Supabase project URL |
+| `SUPABASE_KEY` | `your_anon_key` | Supabase anon key (from Project Settings → API) |
 | `PASSWORD_HASH_ROUNDS` | `12` | Password hashing rounds |
 | `SESSION_TIMEOUT` | `60` | Session timeout in minutes |
 | `MAX_LOGIN_ATTEMPTS` | `5` | Max failed login attempts |
@@ -271,7 +286,6 @@ requests>=2.32.5
 markdown>=3.7
 pillow>=11.3.0
 python-docx>=1.2.0
-psycopg2-binary>=2.9.10
 ```
 
 ### Issue: Secrets not working

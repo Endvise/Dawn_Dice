@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-인증 관리 모듈
+Authentication Management Module
 """
 
 import streamlit as st
@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any
 import database as db
 
 
-# 세션 상태 키
+# Session state keys
 SESSION_KEYS = {
     "authenticated": "dice_authenticated",
     "user_id": "dice_user_id",
@@ -21,7 +21,7 @@ SESSION_KEYS = {
 
 
 def init_session_state():
-    """세션 상태를 초기화합니다."""
+    """Initialize session state."""
     for key, session_key in SESSION_KEYS.items():
         if session_key not in st.session_state:
             st.session_state[session_key] = None
@@ -29,41 +29,42 @@ def init_session_state():
 
 def login(username: str, password: str) -> tuple[bool, str]:
     """
-    로그인을 시도합니다.
-    Returns: (성공 여부, 메시지)
+    Attempt login.
+    Returns: (success, message)
     """
-    # 사용자 조회
+    # Find user
     user = db.get_user_by_username(username)
 
     if not user:
-        # 사령관번호로도 시도
+        # Also try commander ID
         user = db.get_user_by_commander_id(username)
 
     if not user:
-        return False, "존재하지 않는 사용자입니다."
+        return False, "User not found."
 
-    # 계정 비활성화 체크
+    # Check if account is disabled
     if not user.get("is_active"):
-        return False, "비활성화된 계정입니다."
+        return False, "Account is disabled."
 
-    # 로그인 실패 횟수 체크
+    # Check login attempts
     max_attempts = st.secrets.get("MAX_LOGIN_ATTEMPTS", 5)
     if user.get("failed_attempts", 0) >= max_attempts:
-        return False, "로그인 실패 횟수를 초과했습니다. 관리자에게 연락하세요."
+        return False, "Too many failed login attempts. Contact admin."
 
-    # 비밀번호 검증
+    # Verify password
     if not db.verify_password(password, user["password_hash"]):
-        # 실패 횟수 증가
+        # Increase failed attempts
         db.update_user(user["id"], failed_attempts=user.get("failed_attempts", 0) + 1)
+        remaining = max_attempts - user.get("failed_attempts", 0) - 1
         return (
             False,
-            f"비밀번호가 올바르지 않습니다. (남은 횟수: {max_attempts - user.get('failed_attempts', 0) - 1})",
+            f"Invalid password. ({remaining} attempts remaining)",
         )
 
-    # 로그인 성공
+    # Login successful
     db.update_user(user["id"], failed_attempts=0, last_login=datetime.now())
 
-    # 세션 상태 설정
+    # Set session state
     st.session_state[SESSION_KEYS["authenticated"]] = True
     st.session_state[SESSION_KEYS["user_id"]] = user["id"]
     st.session_state[SESSION_KEYS["username"]] = user.get("username") or user.get(
@@ -73,23 +74,23 @@ def login(username: str, password: str) -> tuple[bool, str]:
     st.session_state[SESSION_KEYS["nickname"]] = user.get("nickname", "")
     st.session_state[SESSION_KEYS["login_time"]] = datetime.now()
 
-    return True, "로그인 성공!"
+    return True, "Login successful!"
 
 
 def logout():
-    """로그아웃합니다."""
+    """Logout."""
     for key, session_key in SESSION_KEYS.items():
         st.session_state[session_key] = None
     st.rerun()
 
 
 def is_authenticated() -> bool:
-    """인증 여부를 확인합니다."""
+    """Check authentication."""
     authenticated = st.session_state.get(SESSION_KEYS["authenticated"])
     if not authenticated:
         return False
 
-    # 세션 타임아웃 체크
+    # Check session timeout
     login_time = st.session_state.get(SESSION_KEYS["login_time"])
     if login_time:
         timeout_minutes = st.secrets.get("SESSION_TIMEOUT_MINUTES", 60)
@@ -101,7 +102,7 @@ def is_authenticated() -> bool:
 
 
 def get_current_user() -> Optional[Dict[str, Any]]:
-    """현재 로그인한 사용자 정보를 반환합니다."""
+    """Return current user info."""
     if not is_authenticated():
         return None
 
@@ -112,41 +113,41 @@ def get_current_user() -> Optional[Dict[str, Any]]:
 
 
 def get_current_user_id() -> Optional[int]:
-    """현재 로그인한 사용자 ID를 반환합니다."""
+    """Return current user ID."""
     return st.session_state.get(SESSION_KEYS["user_id"])
 
 
 def get_current_role() -> Optional[str]:
-    """현재 사용자의 역할을 반환합니다."""
+    """Return current user role."""
     return st.session_state.get(SESSION_KEYS["role"])
 
 
 def is_master() -> bool:
-    """마스터 권한인지 확인합니다."""
+    """Check master权限."""
     return get_current_role() == "master"
 
 
 def is_admin() -> bool:
-    """관리자 권한 이상인지 확인합니다."""
+    """Check admin权限."""
     role = get_current_role()
     return role in ["master", "admin"]
 
 
 def is_user() -> bool:
-    """일반 사용자인지 확인합니다."""
+    """Check if regular user."""
     return get_current_role() == "user"
 
 
 def require_auth(required_role: Optional[str] = None) -> bool:
     """
-    인증 및 권한 확인
-    Returns: 접근 권한 여부
+    Check authentication and permission.
+    Returns: access permission
     """
-    # 인증 확인
+    # Check authentication
     if not is_authenticated():
         return False
 
-    # 역할 확인
+    # Check role
     if required_role:
         current_role = get_current_role()
 
@@ -155,29 +156,31 @@ def require_auth(required_role: Optional[str] = None) -> bool:
         elif required_role == "admin":
             return is_admin()
         elif required_role == "user":
-            return True  # 인증된 모든 사용자 접근 가능
+            return True  # All authenticated users can access
 
     return True
 
 
 def show_login_page():
-    """로그인 페이지를 표시합니다."""
-    st.title("🎲 주사위 예약 시스템")
+    """Display login page."""
+    st.title("🎲 DaWn Dice Party")
     st.markdown("---")
 
     col1, col2, col3 = st.columns([1, 2, 1])
 
     with col2:
-        st.subheader("로그인")
+        st.subheader("Login")
 
         login_method = st.radio(
-            "로그인 방식", ["사용자 ID/사령관번호", "마스터 계정"], horizontal=True
+            "Login Method",
+            ["User ID / Commander ID", "Master Account"],
+            horizontal=True,
         )
 
-        username = st.text_input("ID 또는 사령관번호", key="login_username")
-        password = st.text_input("비밀번호", type="password", key="login_password")
+        username = st.text_input("ID or Commander ID", key="login_username")
+        password = st.text_input("Password", type="password", key="login_password")
 
-        if st.button("로그인", use_container_width=True):
+        if st.button("Login", use_container_width=True):
             success, message = login(username, password)
 
             if success:
@@ -187,16 +190,16 @@ def show_login_page():
                 st.error(message)
 
         st.markdown("---")
-        st.markdown("### 계정이 없으신가요?")
+        st.markdown("### Don't have an account?")
 
-        if st.button("회원가입", use_container_width=True):
+        if st.button("Register", use_container_width=True):
             st.session_state["show_register"] = True
             st.rerun()
 
 
 def require_login(required_role: Optional[str] = None, redirect_to: str = "login"):
     """
-    로그인이 필요한 페이지에 대한 데코레이터
+    Decorator for pages requiring login.
     """
     if not is_authenticated():
         show_login_page()
@@ -206,36 +209,36 @@ def require_login(required_role: Optional[str] = None, redirect_to: str = "login
         current_role = get_current_role()
 
         if required_role == "master" and not is_master():
-            st.error("마스터 권한이 필요합니다.")
+            st.error("Master权限 required.")
             st.stop()
         elif required_role == "admin" and not is_admin():
-            st.error("관리자 권한이 필요합니다.")
+            st.error("Admin权限 required.")
             st.stop()
 
 
 def show_user_info():
-    """사용자 정보를 표시합니다."""
+    """Display user info."""
     user = get_current_user()
 
     if user:
-        role_labels = {"master": "👑 마스터", "admin": "🛡️ 관리자", "user": "👤 사용자"}
+        role_labels = {"master": "👑 Master", "admin": "🛡️ Admin", "user": "👤 User"}
 
         role_label = role_labels.get(user["role"], user["role"])
 
         st.sidebar.markdown("---")
-        st.sidebar.markdown("### 👤 사용자 정보")
+        st.sidebar.markdown("### 👤 User Info")
         st.sidebar.text(
-            f"이름: {user.get('nickname', user.get('username', 'Unknown'))}"
+            f"Name: {user.get('nickname', user.get('username', 'Unknown'))}"
         )
-        st.sidebar.text(f"역할: {role_label}")
+        st.sidebar.text(f"Role: {role_label}")
 
-        if st.sidebar.button("로그아웃"):
+        if st.sidebar.button("Logout"):
             logout()
 
 
 def get_user_statistics() -> Dict[str, Any]:
-    """사용자 통계를 반환합니다."""
-    # 예약 수
+    """Return user statistics."""
+    # Reservation count
     if is_user():
         my_reservations = db.list_reservations(user_id=get_current_user_id())
         total_reservations = len(my_reservations)
@@ -249,5 +252,5 @@ def get_user_statistics() -> Dict[str, Any]:
     return {
         "total_reservations": total_reservations,
         "pending_reservations": pending_reservations,
-        "is_blacklisted": False,  # TODO: 사용자 블랙리스트 체크
+        "is_blacklisted": False,
     }

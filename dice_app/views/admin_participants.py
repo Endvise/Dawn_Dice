@@ -4,6 +4,8 @@ Admin Participants Management Page
 """
 
 import streamlit as st
+import pandas as pd
+import openpyxl
 import database as db
 import auth
 from utils import (
@@ -383,18 +385,19 @@ def show():
             except Exception as e:
                 st.error(f"Error adding: {e}")
 
-    # Tab 3: Import Excel/CSV
+    # Tab 3: Import Excel/CSV with Edit
     with tab3:
         st.markdown("### Import Excel/CSV")
 
         st.markdown("""
-        Import participants from **Excel (.xlsx)** or **CSV** file.
+        Upload **Excel (.xlsx)** or **CSV** file to import participants.
 
-        - Auto column detection: Nickname, Commander ID, Affiliation, etc.
-        - Flexible mapping: Support various column names
-        - Preview before saving
+        - Data will be converted to CSV format
+        - Edit data directly in the table
+        - Preview and save to database
         """)
 
+        # File uploader
         uploaded_file = st.file_uploader(
             "Upload File",
             type=["xlsx", "xls", "csv"],
@@ -403,107 +406,164 @@ def show():
 
         if uploaded_file:
             try:
+                import pandas as pd
                 import openpyxl
                 from io import BytesIO
-                import pandas as pd
 
                 file_type = uploaded_file.name.split(".")[-1].lower()
+                file_name = uploaded_file.name.split(".")[0]
 
+                # Load data
                 if file_type == "csv":
-                    df = pd.read_csv(uploaded_file)
-                    st.success(f"CSV loaded: {len(df)} rows")
-                    st.dataframe(df.head(5))
+                    try:
+                        df = pd.read_csv(uploaded_file)
+                    except:
+                        df = pd.read_csv(uploaded_file, encoding="utf-8-sig")
                 else:
-                    wb = openpyxl.load_workbook(
-                        BytesIO(uploaded_file.read()), data_only=True
-                    )
+                    # Use pandas to read Excel - simpler approach
+                    try:
+                        df = pd.read_excel(BytesIO(uploaded_file.read()), sheet_name=0)
+                    except:
+                        wb = openpyxl.load_workbook(
+                            BytesIO(uploaded_file.read()), data_only=True
+                        )
+                        ws = wb.active
+                        headers = [
+                            str(cell.value) if cell.value else f"col_{i}"
+                            for i, cell in enumerate(ws[1], 1)
+                        ]
+                        rows_data = [
+                            list(row)
+                            for row in ws.iter_rows(min_row=2, values_only=True)
+                        ]
+                        df = (
+                            pd.DataFrame(
+                                rows_data, columns=headers[: len(rows_data[0])]
+                            )
+                            if rows_data
+                            else pd.DataFrame()
+                        )
 
-                    st.success(f"Excel loaded: {len(wb.sheetnames)} sheets")
+                # Convert to CSV format name
+                csv_name = f"{file_name}.csv"
 
-                    sheets = wb.sheetnames
-                    sheet_option = st.selectbox("Select Sheet", sheets)
-                    ws = wb[sheet_option]
+                st.success(f"Loaded: {uploaded_file.name} → {csv_name}")
+                st.info(f"Total rows: {len(df)}")
 
-                    headers = [cell.value for cell in ws[1] if cell.value]
-                    df = pd.DataFrame(
-                        ws.iter_rows(min_row=2, values_only=True), columns=headers
-                    )
-                    st.dataframe(df.head(5))
-
-                if headers:
-                    st.markdown("---")
+                if not df.empty:
+                    # Column mapping
                     st.markdown("### Column Mapping")
+                    col1, col2 = st.columns(2)
 
-                    column_mapping = map_excel_columns(headers)
-                    display_column_mapping_info(column_mapping, headers)
+                    with col1:
+                        # Auto-detect commander_id column
+                        id_candidates = [
+                            c
+                            for c in df.columns
+                            if any(
+                                x in str(c).lower()
+                                for x in ["commander", "id", "igg", "number"]
+                            )
+                        ]
+                        id_col = st.selectbox(
+                            "Commander ID Column",
+                            options=list(df.columns),
+                            index=list(df.columns).index(id_candidates[0])
+                            if id_candidates
+                            else 0,
+                        )
 
-                    st.markdown("---")
-                    st.markdown("### Preview")
+                    with col2:
+                        nickname_col = st.selectbox(
+                            "Nickname Column (Optional)",
+                            options=["None"] + list(df.columns),
+                            index=0,
+                        )
 
-                    rows = []
-                    for idx, row in df.iterrows():
-                        row_data = extract_row_data(row, headers, column_mapping)
-                        if row_data.get("commander_id"):
-                            rows.append(row_data)
+                    # Apply column mapping
+                    if id_col:
+                        df_mapped = pd.DataFrame()
+                        df_mapped["commander_id"] = df[id_col].astype(str)
 
-                    st.success(f"Found {len(rows)} valid records")
+                        if nickname_col != "None":
+                            df_mapped["nickname"] = df[nickname_col].astype(str)
 
-                    # Show preview table
-                    if rows:
-                        preview_df = pd.DataFrame(rows[:10])
-                        st.dataframe(preview_df)
+                        # Auto-fill other columns
+                        for col in df.columns:
+                            if col != id_col and col != nickname_col:
+                                col_clean = str(col).lower().strip().replace(" ", "_")
+                                df_mapped[col_clean] = df[col].astype(str)
 
-                    st.markdown("---")
+                        # Event name
+                        event_name = st.text_input(
+                            "Event Name",
+                            placeholder="e.g., 260128",
+                            value=file_name.split("_")[0] if "_" in file_name else "",
+                        )
+                        if event_name:
+                            df_mapped["event_name"] = event_name
 
-                    # Event name input
-                    event_name = st.text_input(
-                        "Event Name for Imported Data",
-                        placeholder="e.g., 260128",
-                    )
+                        st.markdown("---")
+                        st.markdown("### 📊 Edit Data")
 
-                    col_btn1, col_btn2 = st.columns(2)
-
-                    with col_btn1:
-                        if st.button(
-                            "Save to Database",
-                            type="primary",
+                        # Show editable dataframe
+                        edited_df = st.data_editor(
+                            df_mapped,
+                            num_rows="dynamic",
                             use_container_width=True,
-                            disabled=not event_name,
-                        ):
-                            with st.spinner("Saving..."):
-                                added_count = 0
-                                updated_count = 0
+                            key="participant_editor",
+                        )
 
-                                for row_data in rows:
-                                    try:
-                                        row_data["event_name"] = event_name
-                                        if not row_data.get("number"):
-                                            row_data["number"] = auto_number
-                                        db.add_participant(row_data)
-                                        added_count += 1
-                                    except Exception as row_error:
-                                        st.warning(f"Error processing row: {row_error}")
-                                        continue
+                        st.markdown("---")
 
-                                st.success(
-                                    f"Done! Added: {added_count}, Updated: {updated_count}"
-                                )
-                                st.rerun()
+                        # Action buttons
+                        col_btn1, col_btn2 = st.columns(2)
 
-                    with col_btn2:
-                        # Download as CSV
-                        if rows:
-                            csv = pd.DataFrame(rows).to_csv(index=False)
+                        with col_btn1:
+                            if st.button(
+                                "💾 Save to Database",
+                                type="primary",
+                                use_container_width=True,
+                            ):
+                                if not event_name:
+                                    st.error("Enter event name.")
+                                else:
+                                    with st.spinner("Saving..."):
+                                        saved_count = 0
+                                        for idx, row in edited_df.iterrows():
+                                            try:
+                                                row_data = row.to_dict()
+                                                if (
+                                                    row_data.get("commander_id")
+                                                    and row_data.get("commander_id")
+                                                    != "nan"
+                                                ):
+                                                    db.add_participant(row_data)
+                                                    saved_count += 1
+                                            except Exception as e:
+                                                st.warning(f"Row {idx}: {e}")
+                                                continue
+
+                                        st.success(f"Saved {saved_count} records!")
+                                        st.rerun()
+
+                        with col_btn2:
+                            # Download as CSV
+                            csv_data = edited_df.to_csv(index=False)
                             st.download_button(
-                                "Download as CSV",
-                                csv,
-                                "participants_import.csv",
+                                "📥 Download CSV",
+                                csv_data,
+                                csv_name,
                                 "text/csv",
                                 use_container_width=True,
                             )
+                    else:
+                        st.error("Please select Commander ID column.")
+                else:
+                    st.warning("No data found in file.")
 
             except Exception as e:
-                st.error(f"Error reading file: {e}")
+                st.error(f"Error: {e}")
 
     st.markdown("---")
     st.markdown("""

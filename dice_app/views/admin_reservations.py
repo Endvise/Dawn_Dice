@@ -163,11 +163,14 @@ def show():
                                 use_container_width=True,
                             ):
                                 try:
-                                    db.update_reservation_status(
-                                        res["id"], "approved", user["id"]
-                                    )
-                                    st.success("Approved.")
-                                    st.rerun()
+                                    if user and user.get("id"):
+                                        db.update_reservation_status(
+                                            res["id"], "approved", user["id"]
+                                        )
+                                        st.success("Approved.")
+                                        st.rerun()
+                                    else:
+                                        st.error("User session expired.")
                                 except Exception as e:
                                     st.error(f"Error approving: {e}")
 
@@ -207,7 +210,11 @@ def show():
                             type="secondary",
                             use_container_width=True,
                         ):
-                            if st.confirm("Delete this reservation?"):
+                            confirm_delete = st.checkbox(
+                                "I understand this cannot be undone",
+                                key=f"confirm_delete_{res['id']}",
+                            )
+                            if confirm_delete:
                                 try:
                                     db.delete_reservation(res["id"])
                                     st.success("Deleted.")

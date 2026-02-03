@@ -55,11 +55,12 @@ def show():
                         """)
 
                         if bl.get("added_by"):
-                            adder = db.get_user_by_id(bl["added_by"])
-                            if adder:
-                                st.info(
-                                    f"Added by: {adder.get('nickname', adder.get('username', 'Unknown'))}"
-                                )
+                            if bl.get("added_by"):
+                                adder = db.get_user_by_id(bl["added_by"])
+                                if adder:
+                                    st.info(
+                                        f"Added by: {adder.get('nickname', adder.get('username', 'Unknown'))}"
+                                    )
 
                     with col2:
                         st.markdown("### Actions")
@@ -205,7 +206,11 @@ def show():
                             type="secondary",
                             use_container_width=True,
                         ):
-                            if st.confirm("Delete permanently? This cannot be undone."):
+                            confirm_delete = st.checkbox(
+                                "I understand this cannot be undone",
+                                key=f"confirm_permanent_{bl['id']}",
+                            )
+                            if confirm_delete:
                                 try:
                                     from database import execute_query
 

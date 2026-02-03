@@ -234,7 +234,7 @@ def show():
         st.markdown("### 👤 Welcome!")
 
         # Blacklist check
-        if user.get("commander_id"):
+        if user and user.get("commander_id"):
             blacklisted = db.check_blacklist(user["commander_id"])
 
             if blacklisted:
@@ -252,6 +252,7 @@ def show():
             """)
 
         # My reservations status
+        my_reservations = []
         if user:
             my_reservations = db.list_reservations(user_id=user["id"])
 
@@ -270,7 +271,7 @@ def show():
                     st.info(f"Current position: {waitlist_position}")
 
                     # Estimated waiting time (assuming 1 person leaves per day)
-                    if waitlist_position > 0:
+                    if waitlist_position and waitlist_position > 0:
                         expected_days = waitlist_position
                         st.info(f"Estimated waiting time: about {expected_days} days")
 

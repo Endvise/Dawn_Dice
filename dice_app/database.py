@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-데이터베이스 관리 모듈
+Database Management Module - Supports both SQLite and PostgreSQL (Supabase)
 """
 
 import sqlite3
@@ -9,212 +9,278 @@ import bcrypt
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+from contextlib import contextmanager
 
-# 데이터베이스 경로
+# Try to import SQLAlchemy for PostgreSQL
+try:
+    from sqlalchemy import (
+        create_engine,
+        text,
+        Column,
+        Integer,
+        String,
+        Text,
+        DateTime,
+        Boolean,
+        Float,
+    )
+    from sqlalchemy.orm import sessionmaker, declarative_base
+    from sqlalchemy import inspect
+
+    SQLALCHEMY_AVAILABLE = True
+except ImportError:
+    SQLALCHEMY_AVAILABLE = False
+
+# Database configuration
+DB_TYPE = st.secrets.get("DB_TYPE", "sqlite")  # "sqlite" or "postgresql"
+
+# SQLite configuration
 DB_PATH = Path(st.secrets.get("DB_PATH", "data/dice_app.db"))
 
+# PostgreSQL configuration (Supabase)
+DB_CONNECTION_STRING = st.secrets.get("DB_CONNECTION_STRING", "")
 
-@st.cache_resource
-def get_connection() -> sqlite3.Connection:
-    """데이터베이스 연결을 캐시하여 반환합니다."""
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(DB_PATH), check_same_thread=False, timeout=30)
-    conn.row_factory = sqlite3.Row  # 딕셔너리 형태로 결과 반환
-    return conn
+# Engine and session management
+_engine = None
+_SessionLocal = None
+
+
+def get_engine():
+    """Create and cache database engine."""
+    global _engine
+
+    if _engine is not None:
+        return _engine
+
+    if DB_TYPE == "postgresql" and DB_CONNECTION_STRING:
+        # PostgreSQL (Supabase)
+        _engine = create_engine(
+            DB_CONNECTION_STRING, pool_pre_ping=True, pool_recycle=3600
+        )
+    else:
+        # SQLite (fallback)
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _engine = create_engine(f"sqlite:///{DB_PATH}", pool_pre_ping=True)
+
+    return _engine
+
+
+def get_session():
+    """Get database session."""
+    global _SessionLocal
+
+    if _SessionLocal is None:
+        engine = get_engine()
+        _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+    return _SessionLocal()
+
+
+@contextmanager
+def get_db_connection():
+    """Context manager for database session."""
+    session = get_session()
+    try:
+        yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
 
 
 def execute_query(query: str, params: tuple = (), fetch: bool | str = False) -> Any:
-    """SQL 쿼리를 실행합니다."""
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    try:
-        cursor.execute(query, params)
-        if fetch:
-            if fetch == "one":
-                result = cursor.fetchone()
-            elif fetch == "all":
-                result = cursor.fetchall()
+    """Execute SQL query."""
+    with get_db_connection() as session:
+        try:
+            # Convert tuple params to list for SQLAlchemy
+            if params:
+                params_list = list(params)
             else:
-                result = cursor.fetchall()
-            conn.commit()
-            return result
-        else:
-            conn.commit()
-            return None
-    except sqlite3.OperationalError as e:
-        conn.rollback()
-        st.error(f"데이터베이스 오류: {e}")
-        st.error(f"쿼리: {query[:100]}...")
-        raise e
-    except Exception as e:
-        conn.rollback()
-        raise e
-    finally:
-        # 커서를 닫지 않음 (연결이 캐시되므로)
-        pass
+                params_list = []
+
+            # Execute query
+            result = session.execute(text(query), params_list)
+
+            if fetch:
+                if fetch == "one":
+                    row = result.fetchone()
+                    if row:
+                        return (
+                            dict(row._mapping)
+                            if hasattr(row, "_mapping")
+                            else dict(zip(result.keys(), row))
+                        )
+                    return None
+                elif fetch == "all":
+                    rows = result.fetchall()
+                    if rows:
+                        return [
+                            dict(row._mapping)
+                            if hasattr(row, "_mapping")
+                            else dict(zip(result.keys(), row))
+                            for row in rows
+                        ]
+                    return []
+                else:
+                    rows = result.fetchall()
+                    if rows:
+                        return [
+                            dict(row._mapping)
+                            if hasattr(row, "_mapping")
+                            else dict(zip(result.keys(), row))
+                            for row in rows
+                        ]
+                    return []
+            else:
+                return result
+        except Exception as e:
+            session.rollback()
+            st.error(f"Database error: {e}")
+            raise
 
 
 def init_database():
-    """데이터베이스 테이블을 초기화합니다."""
-    # Users 테이블
-    execute_query("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE,
-            commander_id TEXT UNIQUE,
-            password_hash TEXT NOT NULL,
-            role TEXT NOT NULL DEFAULT 'user',
-            nickname TEXT,
-            server TEXT,
-            alliance TEXT,
-            is_active INTEGER DEFAULT 1,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            last_login TIMESTAMP,
-            failed_attempts INTEGER DEFAULT 0
-        )
-    """)
+    """Initialize database tables."""
+    # Create tables using SQLAlchemy
+    engine = get_engine()
+    Base = declarative_base()
 
-    # Reservations 테이블
-    execute_query("""
-        CREATE TABLE IF NOT EXISTS reservations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            nickname TEXT NOT NULL,
-            commander_id TEXT NOT NULL,
-            server TEXT NOT NULL,
-            alliance TEXT,
-            status TEXT DEFAULT 'pending',
-            is_blacklisted INTEGER DEFAULT 0,
-            blacklist_reason TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            approved_at TIMESTAMP,
-            approved_by INTEGER,
-            notes TEXT,
-            FOREIGN KEY (user_id) REFERENCES users(id),
-            FOREIGN KEY (approved_by) REFERENCES users(id)
-        )
-    """)
+    class Users(Base):
+        __tablename__ = "users"
+        id = Column(Integer, primary_key=True, autoincrement=True)
+        username = Column(String(255), unique=True, nullable=True)
+        commander_id = Column(String(50), unique=True, nullable=True)
+        password_hash = Column(String(255), nullable=False)
+        role = Column(String(50), default="user")
+        nickname = Column(String(255))
+        server = Column(String(255))
+        alliance = Column(String(255))
+        is_active = Column(Integer, default=1)
+        created_at = Column(DateTime, default=datetime.now)
+        last_login = Column(DateTime)
+        failed_attempts = Column(Integer, default=0)
 
-    # Blacklist 테이블
-    execute_query("""
-        CREATE TABLE IF NOT EXISTS blacklist (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            commander_id TEXT UNIQUE NOT NULL,
-            nickname TEXT,
-            reason TEXT,
-            added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            added_by INTEGER,
-            is_active INTEGER DEFAULT 1,
-            FOREIGN KEY (added_by) REFERENCES users(id)
-        )
-    """)
+    class Reservations(Base):
+        __tablename__ = "reservations"
+        id = Column(Integer, primary_key=True, autoincrement=True)
+        user_id = Column(Integer)
+        nickname = Column(String(255), nullable=False)
+        commander_id = Column(String(50), nullable=False)
+        server = Column(String(255), nullable=False)
+        alliance = Column(String(255))
+        status = Column(String(50), default="pending")
+        is_blacklisted = Column(Integer, default=0)
+        blacklist_reason = Column(Text)
+        created_at = Column(DateTime, default=datetime.now)
+        approved_at = Column(DateTime)
+        approved_by = Column(Integer)
+        notes = Column(Text)
+        waitlist_order = Column(Integer)
+        waitlist_position = Column(Integer)
 
-    # Servers 테이블
-    execute_query("""
-        CREATE TABLE IF NOT EXISTS servers (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            server_name TEXT UNIQUE NOT NULL,
-            server_code TEXT UNIQUE,
-            is_active INTEGER DEFAULT 1
-        )
-    """)
+    class Blacklist(Base):
+        __tablename__ = "blacklist"
+        id = Column(Integer, primary_key=True, autoincrement=True)
+        commander_id = Column(String(50), unique=True, nullable=False)
+        nickname = Column(String(255))
+        reason = Column(Text)
+        added_at = Column(DateTime, default=datetime.now)
+        added_by = Column(Integer)
+        is_active = Column(Integer, default=1)
 
-    # Alliances 테이블
-    execute_query("""
-        CREATE TABLE IF NOT EXISTS alliances (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            alliance_name TEXT UNIQUE NOT NULL,
-            server_id INTEGER,
-            is_active INTEGER DEFAULT 1,
-            FOREIGN KEY (server_id) REFERENCES servers(id)
-        )
-    """)
+    class Servers(Base):
+        __tablename__ = "servers"
+        id = Column(Integer, primary_key=True, autoincrement=True)
+        server_name = Column(String(255), unique=True, nullable=False)
+        server_code = Column(String(50), unique=True)
+        is_active = Column(Integer, default=1)
 
-    # Participants 테이블 (기존 참여자 목록)
-    execute_query("""
-        CREATE TABLE IF NOT EXISTS participants (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            number INTEGER,
-            nickname TEXT,
-            affiliation TEXT,
-            igg_id TEXT,
-            alliance TEXT,
-            wait_confirmed INTEGER DEFAULT 0,
-            confirmed INTEGER DEFAULT 0,
-            notes TEXT,
-            completed INTEGER DEFAULT 0,
-            participation_record TEXT,
-            event_name TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+    class Alliances(Base):
+        __tablename__ = "alliances"
+        id = Column(Integer, primary_key=True, autoincrement=True)
+        alliance_name = Column(String(255), unique=True, nullable=False)
+        server_id = Column(Integer)
+        is_active = Column(Integer, default=1)
 
-    # Announcements 테이블 (공지사항)
-    execute_query("""
-        CREATE TABLE IF NOT EXISTS announcements (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            content TEXT NOT NULL,
-            category TEXT DEFAULT '공지',
-            is_pinned INTEGER DEFAULT 0,
-            created_by INTEGER,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP,
-            is_active INTEGER DEFAULT 1,
-            FOREIGN KEY (created_by) REFERENCES users(id)
-        )
-    """)
+    class Participants(Base):
+        __tablename__ = "participants"
+        id = Column(Integer, primary_key=True, autoincrement=True)
+        number = Column(Integer)
+        nickname = Column(String(255))
+        affiliation = Column(String(255))
+        igg_id = Column(String(50))
+        alliance = Column(String(255))
+        wait_confirmed = Column(Integer, default=0)
+        confirmed = Column(Integer, default=0)
+        notes = Column(Text)
+        completed = Column(Integer, default=0)
+        participation_record = Column(Text)
+        event_name = Column(String(255))
+        created_at = Column(DateTime, default=datetime.now)
 
-    # Event Sessions 테이블 (이벤트 회차 관리)
-    execute_query("""
-        CREATE TABLE IF NOT EXISTS event_sessions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_number INTEGER,
-            session_name TEXT,
-            session_date DATE,
-            max_participants INTEGER DEFAULT 180,
-            reservation_open_time DATETIME,
-            reservation_close_time DATETIME,
-            is_active INTEGER DEFAULT 1,
-            created_by INTEGER,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (created_by) REFERENCES users(id)
-        )
-    """)
+    class Announcements(Base):
+        __tablename__ = "announcements"
+        id = Column(Integer, primary_key=True, autoincrement=True)
+        title = Column(String(255), nullable=False)
+        content = Column(Text, nullable=False)
+        category = Column(String(50), default="notice")
+        is_pinned = Column(Integer, default=0)
+        created_by = Column(Integer)
+        created_at = Column(DateTime, default=datetime.now)
+        updated_at = Column(DateTime)
+        is_active = Column(Integer, default=1)
 
-    # 인덱스 생성
-    create_indexes()
+    class EventSessions(Base):
+        __tablename__ = "event_sessions"
+        id = Column(Integer, primary_key=True, autoincrement=True)
+        session_number = Column(Integer)
+        session_name = Column(String(255))
+        session_date = Column(DateTime)
+        max_participants = Column(Integer, default=180)
+        reservation_open_time = Column(DateTime)
+        reservation_close_time = Column(DateTime)
+        is_active = Column(Integer, default=1)
+        created_by = Column(Integer)
+        created_at = Column(DateTime, default=datetime.now)
+
+    # Create all tables
+    Base.metadata.create_all(bind=engine)
 
 
 def create_indexes():
-    """데이터베이스 인덱스를 생성합니다."""
+    """Create database indexes."""
     indexes = [
         "CREATE INDEX IF NOT EXISTS idx_users_commander_id ON users(commander_id)",
         "CREATE INDEX IF NOT EXISTS idx_reservations_user_id ON reservations(user_id)",
         "CREATE INDEX IF NOT EXISTS idx_reservations_status ON reservations(status)",
+        "CREATE INDEX IF NOT EXISTS idx_reservations_commander_id ON reservations(commander_id)",
         "CREATE INDEX IF NOT EXISTS idx_blacklist_commander_id ON blacklist(commander_id)",
         "CREATE INDEX IF NOT EXISTS idx_participants_igg_id ON participants(igg_id)",
         "CREATE INDEX IF NOT EXISTS idx_event_sessions_is_active ON event_sessions(is_active)",
     ]
 
     for idx_query in indexes:
-        execute_query(idx_query)
+        try:
+            execute_query(idx_query)
+        except:
+            pass  # Index may already exist
+
+
+# ==================== User Operations ====================
 
 
 def hash_password(password: str) -> str:
-    """비밀번호를 해시화합니다."""
+    """Hash password."""
     salt = bcrypt.gensalt(rounds=st.secrets.get("PASSWORD_HASH_ROUNDS", 12))
     hashed = bcrypt.hashpw(password.encode("utf-8"), salt)
     return hashed.decode("utf-8")
 
 
 def verify_password(password: str, hashed: str) -> bool:
-    """비밀번호를 검증합니다."""
+    """Verify password."""
     return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
-
-
-# ==================== User Operations ====================
 
 
 def create_user(
@@ -226,7 +292,7 @@ def create_user(
     server: Optional[str] = None,
     alliance: Optional[str] = None,
 ) -> int:
-    """사용자를 생성합니다."""
+    """Create user."""
     password_hash = hash_password(password)
 
     result = execute_query(
@@ -237,37 +303,41 @@ def create_user(
         (username, commander_id, password_hash, role, nickname, server, alliance),
     )
 
-    return (
-        result.lastrowid
-        if hasattr(result, "lastrowid")
-        else execute_query("SELECT last_insert_rowid()", fetch="one")[0]
-    )
+    # Get the inserted ID
+    inserted = execute_query("SELECT last_insert_rowid()", fetch="one")
+    if inserted and isinstance(inserted, dict):
+        return (
+            inserted.get("last_insert_rowid()", inserted.get("last_insert_rowid")) or 0
+        )
+    elif inserted:
+        return inserted[0] if isinstance(inserted, tuple) else 0
+    return 0
 
 
 def get_user_by_username(username: str) -> Optional[Dict[str, Any]]:
-    """사용자명으로 사용자를 조회합니다."""
+    """Get user by username."""
     result = execute_query(
         "SELECT * FROM users WHERE username = ?", (username,), fetch="one"
     )
-    return dict(result) if result else None
+    return result
 
 
 def get_user_by_commander_id(commander_id: str) -> Optional[Dict[str, Any]]:
-    """사령관번호로 사용자를 조회합니다."""
+    """Get user by commander ID."""
     result = execute_query(
         "SELECT * FROM users WHERE commander_id = ?", (commander_id,), fetch="one"
     )
-    return dict(result) if result else None
+    return result
 
 
 def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
-    """ID로 사용자를 조회합니다."""
+    """Get user by ID."""
     result = execute_query("SELECT * FROM users WHERE id = ?", (user_id,), fetch="one")
-    return dict(result) if result else None
+    return result
 
 
 def update_user(user_id: int, **kwargs) -> bool:
-    """사용자 정보를 업데이트합니다."""
+    """Update user information."""
     fields = []
     values = []
 
@@ -289,7 +359,7 @@ def update_user(user_id: int, **kwargs) -> bool:
 def list_users(
     role: Optional[str] = None, is_active: Optional[bool] = None
 ) -> List[Dict[str, Any]]:
-    """사용자 목록을 조회합니다."""
+    """List users."""
     conditions = []
     params = []
 
@@ -305,18 +375,18 @@ def list_users(
     query = f"SELECT * FROM users{where_clause} ORDER BY created_at DESC"
 
     results = execute_query(query, tuple(params), fetch="all")
-    return [dict(row) for row in results]
+    return results if results else []
 
 
 def delete_user(user_id: int) -> bool:
-    """사용자를 삭제합니다."""
+    """Delete user."""
     execute_query("DELETE FROM users WHERE id = ?", (user_id,))
     return True
 
 
 # ==================== Reservation Operations ====================
 
-MAX_PARTICIPANTS = 180  # 최대 참여자 수
+MAX_PARTICIPANTS = 180
 
 
 def create_reservation(
@@ -327,25 +397,27 @@ def create_reservation(
     alliance: Optional[str] = None,
     notes: Optional[str] = None,
 ) -> int:
-    """예약을 생성합니다."""
-    # 블랙리스트 체크
+    """Create reservation."""
+    # Check blacklist
     blacklisted = check_blacklist(commander_id)
 
-    # 기존 참여자 수 체크
-    participants_count = execute_query(
+    # Check existing participants count
+    result = execute_query(
         "SELECT COUNT(*) as count FROM participants WHERE completed = 1", fetch="one"
-    ).get("count", 0)
+    )
+    participants_count = result.get("count", 0) if result else 0
 
-    # 승인된 예약자 수 체크
-    approved_reservations_count = execute_query(
+    # Check approved reservations count
+    result = execute_query(
         "SELECT COUNT(*) as count FROM reservations WHERE status = 'approved'",
         fetch="one",
-    ).get("count", 0)
+    )
+    approved_reservations_count = result.get("count", 0) if result else 0
 
-    # 전체 참여자 수
+    # Total participants
     total_count = participants_count + approved_reservations_count
 
-    # 대기자 여부 및 순번 결정
+    # Determine waitlist status
     is_waitlisted = total_count >= MAX_PARTICIPANTS
 
     waitlist_order = None
@@ -353,17 +425,17 @@ def create_reservation(
     status = "pending"
 
     if is_waitlisted:
-        # 대기자 순번 계산
-        waitlist_count = execute_query(
+        result = execute_query(
             "SELECT COUNT(*) as count FROM reservations WHERE waitlist_order IS NOT NULL",
             fetch="one",
-        ).get("count", 0)
+        )
+        waitlist_count = result.get("count", 0) if result else 0
 
         waitlist_order = waitlist_count + 1
-        waitlist_position = waitlist_order  # 초기 대기자 위치
+        waitlist_position = waitlist_order
         status = "waitlisted"
 
-    result = execute_query(
+    execute_query(
         """
         INSERT INTO reservations (
             user_id, nickname, commander_id, server, alliance, notes,
@@ -386,19 +458,23 @@ def create_reservation(
         ),
     )
 
-    return (
-        result.lastrowid
-        if hasattr(result, "lastrowid")
-        else execute_query("SELECT last_insert_rowid()", fetch="one")[0]
-    )
+    # Get inserted ID
+    inserted = execute_query("SELECT last_insert_rowid()", fetch="one")
+    if inserted and isinstance(inserted, dict):
+        return (
+            inserted.get("last_insert_rowid()", inserted.get("last_insert_rowid")) or 0
+        )
+    elif inserted:
+        return inserted[0] if isinstance(inserted, tuple) else 0
+    return 0
 
 
 def get_reservation_by_id(reservation_id: int) -> Optional[Dict[str, Any]]:
-    """ID로 예약을 조회합니다."""
+    """Get reservation by ID."""
     result = execute_query(
         "SELECT * FROM reservations WHERE id = ?", (reservation_id,), fetch="one"
     )
-    return dict(result) if result else None
+    return result
 
 
 def list_reservations(
@@ -406,7 +482,7 @@ def list_reservations(
     user_id: Optional[int] = None,
     is_blacklisted: Optional[bool] = None,
 ) -> List[Dict[str, Any]]:
-    """예약 목록을 조회합니다."""
+    """List reservations."""
     conditions = []
     params = []
 
@@ -432,13 +508,13 @@ def list_reservations(
     """
 
     results = execute_query(query, tuple(params), fetch="all")
-    return [dict(row) for row in results]
+    return results if results else []
 
 
 def update_reservation_status(
     reservation_id: int, status: str, approved_by: int
 ) -> bool:
-    """예약 상태를 업데이트합니다."""
+    """Update reservation status."""
     now = datetime.now()
     execute_query(
         """
@@ -452,7 +528,7 @@ def update_reservation_status(
 
 
 def cancel_reservation(reservation_id: int) -> bool:
-    """예약을 취소합니다."""
+    """Cancel reservation."""
     execute_query(
         "UPDATE reservations SET status = 'cancelled' WHERE id = ?", (reservation_id,)
     )
@@ -460,7 +536,7 @@ def cancel_reservation(reservation_id: int) -> bool:
 
 
 def delete_reservation(reservation_id: int) -> bool:
-    """예약을 삭제합니다."""
+    """Delete reservation."""
     execute_query("DELETE FROM reservations WHERE id = ?", (reservation_id,))
     return True
 
@@ -474,8 +550,8 @@ def add_to_blacklist(
     reason: Optional[str] = None,
     added_by: Optional[int] = None,
 ) -> int:
-    """블랙리스트에 추가합니다."""
-    result = execute_query(
+    """Add to blacklist."""
+    execute_query(
         """
         INSERT INTO blacklist (commander_id, nickname, reason, added_by)
         VALUES (?, ?, ?, ?)
@@ -483,7 +559,7 @@ def add_to_blacklist(
         (commander_id, nickname, reason, added_by),
     )
 
-    # 기존 예약들도 블랙리스트로 표시
+    # Update existing reservations
     execute_query(
         """
         UPDATE reservations
@@ -493,16 +569,20 @@ def add_to_blacklist(
         (reason, commander_id),
     )
 
-    return (
-        result.lastrowid
-        if hasattr(result, "lastrowid")
-        else execute_query("SELECT last_insert_rowid()", fetch="one")[0]
-    )
+    # Get inserted ID
+    inserted = execute_query("SELECT last_insert_rowid()", fetch="one")
+    if inserted and isinstance(inserted, dict):
+        return (
+            inserted.get("last_insert_rowid()", inserted.get("last_insert_rowid")) or 0
+        )
+    elif inserted:
+        return inserted[0] if isinstance(inserted, tuple) else 0
+    return 0
 
 
 def check_blacklist(commander_id: str) -> Optional[Dict[str, Any]]:
-    """블랙리스트 체크 (로컬 + Google Sheets)."""
-    # 로컬 블랙리스트 체크
+    """Check blacklist (local + Google Sheets)."""
+    # Check local blacklist
     result = execute_query(
         "SELECT * FROM blacklist WHERE commander_id = ? AND is_active = 1",
         (commander_id,),
@@ -510,9 +590,9 @@ def check_blacklist(commander_id: str) -> Optional[Dict[str, Any]]:
     )
 
     if result:
-        return dict(result)
+        return result
 
-    # Google Sheets 블랙리스트 체크
+    # Check Google Sheets blacklist
     try:
         import requests
 
@@ -542,28 +622,27 @@ def check_blacklist(commander_id: str) -> Optional[Dict[str, Any]]:
                 if df.empty:
                     return None
 
-                # 사령관번호(IGG 아이디) 컬럼 찾기 (정확한 매칑)
                 commander_id_str = str(commander_id)
 
-                # ID 컬럼 우선 매칑 (정확도 높음)
+                # Find ID column
                 id_columns = []
                 for col in df.columns:
                     col_lower = str(col).lower()
-                    # 정확한 ID 컬럼만 선택
                     if (
                         col_lower == "id"
+                        or col_lower == "commander_id"
                         or col_lower == "사령관번호"
                         or (
                             col_lower.startswith("igg")
                             and not any(
                                 kw in col_lower
-                                for kw in ["닉네임", "이름", "연맹", "alliance", "소속"]
+                                for kw in ["nickname", "name", "alliance", "소속"]
                             )
                         )
                     ):
                         id_columns.append(col)
 
-                # ID 컬럼에서 정확히 매칭
+                # Exact match
                 for col in id_columns:
                     try:
                         col_data = df[col].astype(str).str.strip()
@@ -577,15 +656,15 @@ def check_blacklist(commander_id: str) -> Optional[Dict[str, Any]]:
                                 "reason": "Google Sheets blacklist",
                                 "is_active": 1,
                                 "source": "Google Sheets",
-                                "matched_column": col,
                             }
                     except Exception:
                         continue
 
-                # 부분 매칭 (긴급 대안)
+                # Partial match
                 for col in df.columns:
                     if any(
-                        keyword in str(col).lower() for keyword in ["igg", "사령관"]
+                        keyword in str(col).lower()
+                        for keyword in ["igg", "commander", "사령관"]
                     ):
                         try:
                             if (
@@ -606,18 +685,17 @@ def check_blacklist(commander_id: str) -> Optional[Dict[str, Any]]:
                                     "reason": "Google Sheets blacklist (partial match)",
                                     "is_active": 1,
                                     "source": "Google Sheets",
-                                    "matched_column": col,
                                 }
                         except Exception:
                             continue
     except Exception as e:
-        st.warning(f"Google Sheets 블랙리스트 조회 실패: {e}")
+        st.warning(f"Google Sheets blacklist check failed: {e}")
 
     return None
 
 
 def remove_from_blacklist(commander_id: str) -> bool:
-    """블랙리스트에서 제거합니다."""
+    """Remove from blacklist."""
     execute_query(
         "UPDATE blacklist SET is_active = 0 WHERE commander_id = ?", (commander_id,)
     )
@@ -625,65 +703,73 @@ def remove_from_blacklist(commander_id: str) -> bool:
 
 
 def list_blacklist(is_active: bool = True) -> List[Dict[str, Any]]:
-    """블랙리스트 목록을 조회합니다."""
+    """List blacklist."""
     results = execute_query(
         "SELECT * FROM blacklist WHERE is_active = ? ORDER BY added_at DESC",
         (1 if is_active else 0,),
         fetch="all",
     )
-    return [dict(row) for row in results]
+    return results if results else []
 
 
 # ==================== Server Operations ====================
 
 
 def add_server(server_name: str, server_code: Optional[str] = None) -> int:
-    """서버를 추가합니다."""
-    result = execute_query(
+    """Add server."""
+    execute_query(
         "INSERT INTO servers (server_name, server_code) VALUES (?, ?)",
         (server_name, server_code),
     )
-    return (
-        result.lastrowid
-        if hasattr(result, "lastrowid")
-        else execute_query("SELECT last_insert_rowid()", fetch="one")[0]
-    )
+
+    inserted = execute_query("SELECT last_insert_rowid()", fetch="one")
+    if inserted and isinstance(inserted, dict):
+        return (
+            inserted.get("last_insert_rowid()", inserted.get("last_insert_rowid")) or 0
+        )
+    elif inserted:
+        return inserted[0] if isinstance(inserted, tuple) else 0
+    return 0
 
 
 def list_servers(is_active: bool = True) -> List[Dict[str, Any]]:
-    """서버 목록을 조회합니다."""
+    """List servers."""
     results = execute_query(
         "SELECT * FROM servers WHERE is_active = ? ORDER BY server_name",
         (1 if is_active else 0,),
         fetch="all",
     )
-    return [dict(row) for row in results]
+    return results if results else []
 
 
 # ==================== Alliance Operations ====================
 
 
 def add_alliance(alliance_name: str, server_id: Optional[int] = None) -> int:
-    """연맹을 추가합니다."""
-    result = execute_query(
+    """Add alliance."""
+    execute_query(
         "INSERT INTO alliances (alliance_name, server_id) VALUES (?, ?)",
         (alliance_name, server_id),
     )
-    return (
-        result.lastrowid
-        if hasattr(result, "lastrowid")
-        else execute_query("SELECT last_insert_rowid()", fetch="one")[0]
-    )
+
+    inserted = execute_query("SELECT last_insert_rowid()", fetch="one")
+    if inserted and isinstance(inserted, dict):
+        return (
+            inserted.get("last_insert_rowid()", inserted.get("last_insert_rowid")) or 0
+        )
+    elif inserted:
+        return inserted[0] if isinstance(inserted, tuple) else 0
+    return 0
 
 
 def list_alliances(is_active: bool = True) -> List[Dict[str, Any]]:
-    """연맹 목록을 조회합니다."""
+    """List alliances."""
     results = execute_query(
         "SELECT a.*, s.server_name FROM alliances a LEFT JOIN servers s ON a.server_id = s.id WHERE a.is_active = ? ORDER BY a.alliance_name",
         (1 if is_active else 0,),
         fetch="all",
     )
-    return [dict(row) for row in results]
+    return results if results else []
 
 
 # ==================== Announcement Operations ====================
@@ -692,12 +778,12 @@ def list_alliances(is_active: bool = True) -> List[Dict[str, Any]]:
 def create_announcement(
     title: str,
     content: str,
-    category: str = "공지",
+    category: str = "notice",
     is_pinned: bool = False,
     created_by: Optional[int] = None,
 ) -> int:
-    """공지사항을 생성합니다."""
-    result = execute_query(
+    """Create announcement."""
+    execute_query(
         """
         INSERT INTO announcements (title, content, category, is_pinned, created_by)
         VALUES (?, ?, ?, ?, ?)
@@ -705,32 +791,35 @@ def create_announcement(
         (title, content, category, 1 if is_pinned else 0, created_by),
     )
 
-    return (
-        result.lastrowid
-        if hasattr(result, "lastrowid")
-        else execute_query("SELECT last_insert_rowid()", fetch="one")[0]
-    )
+    inserted = execute_query("SELECT last_insert_rowid()", fetch="one")
+    if inserted and isinstance(inserted, dict):
+        return (
+            inserted.get("last_insert_rowid()", inserted.get("last_insert_rowid")) or 0
+        )
+    elif inserted:
+        return inserted[0] if isinstance(inserted, tuple) else 0
+    return 0
 
 
 def get_announcement_by_id(announcement_id: int) -> Optional[Dict[str, Any]]:
-    """ID로 공지사항을 조회합니다."""
+    """Get announcement by ID."""
     result = execute_query(
         """
         SELECT a.*, u.nickname as author_name
         FROM announcements a
         LEFT JOIN users u ON a.created_by = u.id
         WHERE a.id = ?
-        """,
+    """,
         (announcement_id,),
         fetch="one",
     )
-    return dict(result) if result else None
+    return result
 
 
 def list_announcements(
     is_active: bool = True, category: Optional[str] = None, limit: Optional[int] = None
 ) -> List[Dict[str, Any]]:
-    """공지사항 목록을 조회합니다."""
+    """List announcements."""
     conditions = ["a.is_active = ?"]
     params: List[Any] = [1 if is_active else 0]
 
@@ -752,7 +841,7 @@ def list_announcements(
         query += f" LIMIT {limit}"
 
     results = execute_query(query, tuple(params), fetch="all")
-    return [dict(row) for row in results]
+    return results if results else []
 
 
 def update_announcement(
@@ -763,7 +852,7 @@ def update_announcement(
     is_pinned: Optional[bool] = None,
     is_active: Optional[bool] = None,
 ) -> bool:
-    """공지사항을 업데이트합니다."""
+    """Update announcement."""
     fields = []
     values = []
 
@@ -802,7 +891,7 @@ def update_announcement(
 
 
 def delete_announcement(announcement_id: int) -> bool:
-    """공지사항을 삭제합니다."""
+    """Delete announcement."""
     execute_query("DELETE FROM announcements WHERE id = ?", (announcement_id,))
     return True
 
@@ -811,8 +900,8 @@ def delete_announcement(announcement_id: int) -> bool:
 
 
 def add_participant(data: Dict[str, Any]) -> int:
-    """참여자를 추가합니다."""
-    result = execute_query(
+    """Add participant."""
+    execute_query(
         """
         INSERT INTO participants (
             number, nickname, affiliation, igg_id, alliance,
@@ -834,15 +923,19 @@ def add_participant(data: Dict[str, Any]) -> int:
             data.get("event_name"),
         ),
     )
-    return (
-        result.lastrowid
-        if hasattr(result, "lastrowid")
-        else execute_query("SELECT last_insert_rowid()", fetch="one")[0]
-    )
+
+    inserted = execute_query("SELECT last_insert_rowid()", fetch="one")
+    if inserted and isinstance(inserted, dict):
+        return (
+            inserted.get("last_insert_rowid()", inserted.get("last_insert_rowid")) or 0
+        )
+    elif inserted:
+        return inserted[0] if isinstance(inserted, tuple) else 0
+    return 0
 
 
 def list_participants(event_name: Optional[str] = None) -> List[Dict[str, Any]]:
-    """참여자 목록을 조회합니다."""
+    """List participants."""
     if event_name:
         results = execute_query(
             "SELECT * FROM participants WHERE event_name = ? ORDER BY number",
@@ -853,11 +946,11 @@ def list_participants(event_name: Optional[str] = None) -> List[Dict[str, Any]]:
         results = execute_query(
             "SELECT * FROM participants ORDER BY event_name, number", fetch="all"
         )
-    return [dict(row) for row in results]
+    return results if results else []
 
 
 def update_participant(participant_id: int, **kwargs) -> bool:
-    """참여자 정보를 업데이트합니다."""
+    """Update participant."""
     fields = []
     values = []
 
@@ -877,20 +970,155 @@ def update_participant(participant_id: int, **kwargs) -> bool:
 
 
 def delete_participant(participant_id: int) -> bool:
-    """참여자를 삭제합니다."""
+    """Delete participant."""
     execute_query("DELETE FROM participants WHERE id = ?", (participant_id,))
     return True
+
+
+# ==================== Event Session Operations ====================
+
+
+def create_session(
+    session_number: int,
+    session_name: str,
+    session_date,
+    max_participants: int,
+    created_by: int,
+    reservation_open_time: str = None,
+    reservation_close_time: str = None,
+):
+    """Create session."""
+    execute_query("UPDATE event_sessions SET is_active = 0")
+
+    execute_query(
+        """
+        INSERT INTO event_sessions (session_number, session_name, session_date, max_participants, reservation_open_time, reservation_close_time, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """,
+        (
+            session_number,
+            session_name,
+            session_date,
+            max_participants,
+            reservation_open_time,
+            reservation_close_time,
+            created_by,
+        ),
+    )
+
+
+def get_all_sessions():
+    """Get all sessions."""
+    results = execute_query(
+        """
+        SELECT s.*, u.nickname as creator_name
+        FROM event_sessions s
+        LEFT JOIN users u ON s.created_by = u.id
+        ORDER BY s.session_number DESC
+    """,
+        fetch="all",
+    )
+    return results if results else []
+
+
+def get_active_session():
+    """Get active session."""
+    result = execute_query(
+        """
+        SELECT s.*, u.nickname as creator_name
+        FROM event_sessions s
+        LEFT JOIN users u ON s.created_by = u.id
+        WHERE s.is_active = 1
+        LIMIT 1
+    """,
+        fetch="one",
+    )
+    return result
+
+
+def get_next_session_number():
+    """Get next session number."""
+    result = execute_query(
+        "SELECT MAX(session_number) as max_number FROM event_sessions", fetch="one"
+    )
+    return (result.get("max_number", 0) if result else 0) + 1
+
+
+def get_participant_count(session_id: int) -> int:
+    """Get participant count for session."""
+    session = execute_query(
+        "SELECT session_name FROM event_sessions WHERE id = ?",
+        (session_id,),
+        fetch="one",
+    )
+
+    if not session:
+        return 0
+
+    event_name = session.get("session_name", "")
+    result = execute_query(
+        "SELECT COUNT(*) as count FROM participants WHERE event_name = ? AND completed = 1",
+        (event_name,),
+        fetch="one",
+    )
+    return result.get("count", 0) if result else 0
+
+
+def get_approved_reservation_count(session_id: int) -> int:
+    """Get approved reservation count for session."""
+    result = execute_query(
+        "SELECT COUNT(*) as count FROM reservations WHERE status = 'approved'",
+        fetch="one",
+    )
+    return result.get("count", 0) if result else 0
+
+
+def get_session_reservations(session_id: int):
+    """Get reservations for session."""
+    return list_reservations()
+
+
+def get_session_participants(session_id: int):
+    """Get participants for session."""
+    session = execute_query(
+        "SELECT session_name FROM event_sessions WHERE id = ?",
+        (session_id,),
+        fetch="one",
+    )
+
+    if not session:
+        return []
+
+    event_name = session.get("session_name", "")
+    results = execute_query(
+        "SELECT * FROM participants WHERE event_name = ? ORDER BY number",
+        (event_name,),
+        fetch="all",
+    )
+    return results if results else []
+
+
+def update_session_active(session_id: int, is_active: bool):
+    """Update session active status."""
+    execute_query(
+        "UPDATE event_sessions SET is_active = ? WHERE id = ?",
+        (1 if is_active else 0, session_id),
+    )
+
+
+def delete_session(session_id: int):
+    """Delete session."""
+    execute_query("DELETE FROM event_sessions WHERE id = ?", (session_id,))
 
 
 # ==================== Initialization ====================
 
 
 def initialize_master_account():
-    """마스터 계정을 초기화합니다."""
+    """Initialize master account."""
     master_username = st.secrets.get("MASTER_USERNAME", "DaWnntt0623")
     master_password = st.secrets.get("MASTER_PASSWORD", "4425endvise9897!")
 
-    # 마스터 계정이 없으면 생성
     existing = get_user_by_username(master_username)
     if not existing:
         create_user(
@@ -898,17 +1126,18 @@ def initialize_master_account():
             commander_id=None,
             password=master_password,
             role="master",
-            nickname="마스터 관리자",
+            nickname="Master Admin",
         )
-        st.success(f"마스터 계정이 생성되었습니다: {master_username}")
+        st.success(f"Master account created: {master_username}")
 
 
 def init_app():
-    """앱을 초기화합니다."""
+    """Initialize app."""
     init_database()
+    create_indexes()
     initialize_master_account()
 
-    # 기본 서버 데이터 추가
+    # Add default servers
     default_servers = [
         "#095 woLF",
         "#708 아시아",
@@ -917,38 +1146,4 @@ def init_app():
         try:
             add_server(server_name, server_name.split()[0])
         except:
-            pass  # 이미 존음
-
-    # 마이그레이션: waitlist_order, waitlist_position 컬럼 추가
-    # 컬럼 존재 여부 확인 후 추가
-    try:
-        # reservations 테이블 구조 확인
-        result = execute_query("PRAGMA table_info(reservations)", fetch="all")
-        existing_columns = [col["name"] for col in result]
-
-        if "waitlist_order" not in existing_columns:
-            execute_query("ALTER TABLE reservations ADD COLUMN waitlist_order INTEGER")
-
-        if "waitlist_position" not in existing_columns:
-            execute_query(
-                "ALTER TABLE reservations ADD COLUMN waitlist_position INTEGER"
-            )
-    except Exception as e:
-        st.warning(f"마이그레이션 중 오류 발생: {e}")
-
-    # 마이그레이션: event_sessions에 예약 시간 필드 추가
-    try:
-        result = execute_query("PRAGMA table_info(event_sessions)", fetch="all")
-        existing_columns = [col["name"] for col in result]
-
-        if "reservation_open_time" not in existing_columns:
-            execute_query(
-                "ALTER TABLE event_sessions ADD COLUMN reservation_open_time DATETIME"
-            )
-
-        if "reservation_close_time" not in existing_columns:
-            execute_query(
-                "ALTER TABLE event_sessions ADD COLUMN reservation_close_time DATETIME"
-            )
-    except Exception as e:
-        st.warning(f"이벤트 세션 마이그레이션 중 오류 발생: {e}")
+            pass

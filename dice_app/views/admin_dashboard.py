@@ -15,19 +15,16 @@ def get_dashboard_stats() -> dict:
     # User statistics
     total_users = len(db.list_users())
     active_users = len(db.list_users(is_active=True))
-    admin_users = len(db.list_users(role="admin"))
+    admin_users = len(db.list_admins(role="admin"))
 
-    # Reservation statistics
+    # Reservation statistics (no status field in Supabase schema)
     all_reservations = db.list_reservations()
+    approved = len(
+        all_reservations
+    )  # All reservations are "approved" in simplified schema
 
-    pending = len([r for r in all_reservations if r["status"] == "pending"])
-    approved = len([r for r in all_reservations if r["status"] == "approved"])
-    rejected = len([r for r in all_reservations if r["status"] == "rejected"])
-    cancelled = len([r for r in all_reservations if r["status"] == "cancelled"])
-    waitlisted = len([r for r in all_reservations if r["status"] == "waitlisted"])
-
-    # Blacklist statistics
-    blacklist = db.list_blacklist(is_active=True)
+    # Blacklist statistics (is_active removed from params)
+    blacklist = db.list_blacklist()
 
     # Participant statistics
     participants = db.list_participants()
@@ -45,11 +42,11 @@ def get_dashboard_stats() -> dict:
         "users": {"total": total_users, "active": active_users, "admin": admin_users},
         "reservations": {
             "total": len(all_reservations),
-            "pending": pending,
+            "pending": 0,
             "approved": approved,
-            "rejected": rejected,
-            "cancelled": cancelled,
-            "waitlisted": waitlisted,
+            "rejected": 0,
+            "cancelled": 0,
+            "waitlisted": 0,
         },
         "blacklist": {"total": len(blacklist)},
         "participants": {
@@ -62,7 +59,7 @@ def get_dashboard_stats() -> dict:
             "total_participants": total_participants,
             "max_participants": db.MAX_PARTICIPANTS,
             "is_full": total_participants >= db.MAX_PARTICIPANTS,
-            "waitlist_count": waitlisted,
+            "waitlist_count": 0,
         },
     }
 
@@ -176,34 +173,19 @@ def show():
 
         if users_list:
             for user_data in users_list:
-                role_badge = {"master": "👑", "admin": "🛡️", "user": "👤"}
-
-                badge = role_badge.get(user_data["role"], "👤")
+                # Users table only contains regular users, admins are in separate table
+                badge = "👤"
 
                 with st.expander(
-                    f"{badge} {user_data.get('username', user_data.get('commander_id', 'Unknown'))} - {user_data.get('nickname', 'Unknown')}"
+                    f"{badge} {user_data.get('commander_number', 'Unknown')} - {user_data.get('nickname', 'Unknown')}"
                 ):
                     st.markdown(f"""
-                    **Role**: {user_data.get("role", "Unknown")}
+                    **Role**: User
                     **Server**: {user_data.get("server", "N/A")}
                     **Alliance**: {user_data.get("alliance", "None") if user_data.get("alliance") else "None"}
                     **Created At**: {user_data.get("created_at", "N/A")}
-                    **Last Login**: {user_data.get("last_login", "N/A") if user_data.get("last_login") else "None"}
                     **Status**: {"Active" if user_data.get("is_active") else "Inactive"}
                     """)
-
-                    if user_data.get("failed_attempts", 0) > 0:
-                        st.warning(f"Login failures: {user_data['failed_attempts']}")
-
-                    if user_data.get("failed_attempts", 0) > 0 and is_master:
-                        if st.button(
-                            "Reset Failures",
-                            key=f"reset_failed_{user_data['id']}",
-                            use_container_width=True,
-                        ):
-                            db.update_user(user_data["id"], failed_attempts=0)
-                            st.success("Reset.")
-                            st.rerun()
 
         else:
             st.info("No registered users.")
@@ -325,18 +307,19 @@ def show():
 
         st.markdown("#### Blacklist List")
 
-        blacklist_list = db.list_blacklist(is_active=True)
+        blacklist_list = db.list_blacklist()
 
         if blacklist_list:
             for bl in blacklist_list:
                 with st.expander(
-                    f"🚫 {bl['commander_id']} - {bl['nickname'] if bl and 'nickname' in bl else 'Unknown'}"
+                    f"🚫 {bl['commander_number']} - {bl['nickname'] if bl and 'nickname' in bl else 'Unknown'}"
                 ):
                     st.markdown(f"""
-                    **Commander ID**: {bl["commander_id"]}
+                    **Commander ID**: {bl["commander_number"]}
                     **Nickname**: {bl["nickname"] if bl and "nickname" in bl else "Unknown"}
                     **Reason**: {bl["reason"] if bl and "reason" in bl else "N/A"}
-                    **Added At**: {bl["added_at"]}
+                    **Created At**: {bl["created_at"]}
+                    **Expires At**: {bl["expires_at"] if bl and "expires_at" in bl else "Never"}
                     """)
 
         else:

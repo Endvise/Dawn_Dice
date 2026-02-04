@@ -31,7 +31,7 @@ def init_session_state():
 
 def login(username: str, password: str) -> tuple[bool, str]:
     """
-    Attempt login - authenticates against Supabase users table.
+    Attempt login - authenticates against Supabase admins/users tables.
     Returns: (success, message)
     """
     # Get auth config
@@ -60,40 +60,50 @@ def login(username: str, password: str) -> tuple[bool, str]:
 
         st.warning("Supabase Auth 실패, 자체 인증 사용...")
 
-    # 자체 인증 (bcrypt) - users 테이블 기반
-    user = db.get_user_by_username(username)
+    # 자체 인증 (bcrypt) - admins/users 테이블 기반
+    # 먼저 admins 테이블 확인 (master/admin)
+    admin = db.get_admin_by_username(username)
 
-    if not user:
-        user = db.get_user_by_commander_id(username)
+    # admins 테이블에 계정이 없으면 users 테이블도 시도
+    if not admin:
+        # users 테이블 확인 (일반 사용자)
+        user = db.get_user_by_commander_number(username)
 
-    if not user:
-        return False, "User not found."
+        if not user:
+            return False, "User not found."
 
-    if not user.get("is_active"):
-        return False, "Account is disabled."
+        if not user.get("is_active"):
+            return False, "Account is disabled."
 
-    max_attempts = auth_config["max_login_attempts"]
-    if user.get("failed_attempts", 0) >= max_attempts:
-        return False, "Too many failed login attempts. Contact admin."
+        if not db.verify_password(password, user["password_hash"]):
+            return False, "Invalid password."
 
-    if not db.verify_password(password, user["password_hash"]):
-        db.update_user(user["id"], failed_attempts=user.get("failed_attempts", 0) + 1)
-        remaining = max_attempts - user.get("failed_attempts", 0) - 1
-        return False, f"Invalid password. ({remaining} attempts remaining)"
+        st.session_state[SESSION_KEYS["authenticated"]] = True
+        st.session_state[SESSION_KEYS["user_id"]] = user["id"]
+        st.session_state[SESSION_KEYS["username"]] = user.get("commander_number")
+        st.session_state[SESSION_KEYS["role"]] = "user"
+        st.session_state[SESSION_KEYS["nickname"]] = user.get("nickname", "")
+        st.session_state[SESSION_KEYS["login_time"]] = datetime.now()
+        st.session_state[SESSION_KEYS["access_token"]] = None
 
-    db.update_user(user["id"], failed_attempts=0, last_login=datetime.now())
+        return True, "Login successful!"
 
-    st.session_state[SESSION_KEYS["authenticated"]] = True
-    st.session_state[SESSION_KEYS["user_id"]] = user["id"]
-    st.session_state[SESSION_KEYS["username"]] = user.get("username") or user.get(
-        "commander_id"
-    )
-    st.session_state[SESSION_KEYS["role"]] = user.get("role", "user")
-    st.session_state[SESSION_KEYS["nickname"]] = user.get("nickname", "")
-    st.session_state[SESSION_KEYS["login_time"]] = datetime.now()
-    st.session_state[SESSION_KEYS["access_token"]] = None
+    # admins 계정 로그인
+    if admin:
+        if not db.verify_password(password, admin["password_hash"]):
+            return False, "Invalid password."
 
-    return True, "Login successful!"
+        db.update_admin_last_login(admin["id"])
+
+        st.session_state[SESSION_KEYS["authenticated"]] = True
+        st.session_state[SESSION_KEYS["user_id"]] = admin["id"]
+        st.session_state[SESSION_KEYS["username"]] = admin.get("username")
+        st.session_state[SESSION_KEYS["role"]] = admin.get("role", "admin")
+        st.session_state[SESSION_KEYS["nickname"]] = admin.get("full_name", "")
+        st.session_state[SESSION_KEYS["login_time"]] = datetime.now()
+        st.session_state[SESSION_KEYS["access_token"]] = None
+
+        return True, "Login successful!"
 
 
 def logout():
@@ -241,14 +251,14 @@ def show_user_info():
     user = get_current_user()
 
     if user:
+        role = get_current_role()
         role_labels = {"master": "👑 Master", "admin": "🛡️ Admin", "user": "👤 User"}
-
-        role_label = role_labels.get(user["role"], user["role"])
+        role_label = role_labels.get(role, role)
 
         st.sidebar.markdown("---")
         st.sidebar.markdown("### 👤 User Info")
         st.sidebar.text(
-            f"Name: {user.get('nickname', user.get('username', 'Unknown'))}"
+            f"Name: {user.get('nickname', user.get('commander_number', 'Unknown'))}"
         )
         st.sidebar.text(f"Role: {role_label}")
 
@@ -262,15 +272,11 @@ def get_user_statistics() -> Dict[str, Any]:
     if is_user() and user_id:
         my_reservations = db.list_reservations(user_id=str(user_id))
         total_reservations = len(my_reservations)
-        pending_reservations = len(
-            [r for r in my_reservations if r["status"] == "pending"]
-        )
     else:
         total_reservations = len(db.list_reservations())
-        pending_reservations = len(db.list_reservations(status="pending"))
 
     return {
         "total_reservations": total_reservations,
-        "pending_reservations": pending_reservations,
+        "pending_reservations": 0,  # Status field removed
         "is_blacklisted": False,
     }

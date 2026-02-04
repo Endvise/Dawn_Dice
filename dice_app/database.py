@@ -130,22 +130,20 @@ def _init_master_account():
         if not master_username or not master_password:
             return
 
-        # Check if master account already exists
-        existing = fetch_one("users", {"role": "eq.master"})
+        # Check if master account already exists in admins table
+        existing = fetch_one("admins", {"role": "eq.master"})
         if existing:
             return  # Master already exists
 
-        # Create master account
-        # For master account, we'll use username as commander_id (special case)
-        create_user(
-            username=master_username,
-            commander_id="MASTER0000",  # Special ID for master
-            password=master_password,
-            role="master",
-            nickname="Master",
-            server="N/A",
-            alliance=None,
-        )
+        # Create master account in admins table
+        password_hash = hash_password(master_password)
+        data = {
+            "username": master_username,
+            "password_hash": password_hash,
+            "full_name": "Master",
+            "role": "master",
+        }
+        insert("admins", data)
     except Exception:
         pass  # Silently fail - don't block app startup
 
@@ -166,43 +164,40 @@ def verify_password(password: str, hashed: str) -> bool:
 
 
 def create_user(
-    username: Optional[str],
-    commander_id: Optional[str],
+    commander_number: str,
     password: str,
-    role: str = "user",
     nickname: Optional[str] = None,
     server: Optional[str] = None,
     alliance: Optional[str] = None,
 ) -> int:
-    """Create user."""
+    """Create user (regular user, not admin)."""
     password_hash = hash_password(password)
 
     data = {
-        "username": username,
-        "commander_id": commander_id,
+        "commander_number": commander_number,
         "password_hash": password_hash,
-        "role": role,
         "nickname": nickname,
         "server": server,
         "alliance": alliance,
+        "is_active": True,
     }
 
     return insert("users", data)
 
 
 def get_user_by_username(username: str) -> Optional[Dict[str, Any]]:
-    """Get user by username."""
-    return fetch_one("users", {"username": f"eq.{username}"})
+    """Get user by username - now checks admins table."""
+    return fetch_one("admins", {"username": f"eq.{username}"})
 
 
 def get_user_by_commander_id(commander_id: str) -> Optional[Dict[str, Any]]:
     """Get user by commander ID."""
-    return fetch_one("users", {"commander_id": f"eq.{commander_id}"})
+    return fetch_one("users", {"commander_number": f"eq.{commander_id}"})
 
 
 def get_user_by_commander_number(commander_number: str) -> Optional[Dict[str, Any]]:
-    """Get user by commander number (alias)."""
-    return fetch_one("users", {"commander_id": f"eq.{commander_number}"})
+    """Get user by commander number."""
+    return fetch_one("users", {"commander_number": f"eq.{commander_number}"})
 
 
 def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
@@ -215,21 +210,69 @@ def update_user(user_id: str, **kwargs) -> bool:
     return update("users", kwargs, {"id": f"eq.{user_id}"})
 
 
-def list_users(
-    role: Optional[str] = None, is_active: Optional[bool] = None
-) -> List[Dict[str, Any]]:
+def list_users(is_active: Optional[bool] = None) -> List[Dict[str, Any]]:
     """List users."""
     params = {}
-    if role:
-        params["role"] = f"eq.{role}"
     if is_active is not None:
-        params["is_active"] = f"eq.{1 if is_active else 0}"
+        params["is_active"] = f"eq.{is_active}"
     return fetch_all("users", params)
 
 
 def delete_user(user_id: str) -> bool:
     """Delete user."""
     return delete("users", {"id": f"eq.{user_id}"})
+
+
+# ==================== Admin Operations ====================
+
+
+def create_admin(
+    username: str,
+    password: str,
+    full_name: Optional[str] = None,
+    role: str = "admin",
+) -> int:
+    """Create admin account."""
+    password_hash = hash_password(password)
+    data = {
+        "username": username,
+        "password_hash": password_hash,
+        "full_name": full_name,
+        "role": role,
+    }
+    return insert("admins", data)
+
+
+def get_admin_by_username(username: str) -> Optional[Dict[str, Any]]:
+    """Get admin by username."""
+    return fetch_one("admins", {"username": f"eq.{username}"})
+
+
+def get_admin_by_id(admin_id: str) -> Optional[Dict[str, Any]]:
+    """Get admin by ID."""
+    return fetch_one("admins", {"id": f"eq.{admin_id}"})
+
+
+def list_admins(role: Optional[str] = None) -> List[Dict[str, Any]]:
+    """List admins."""
+    params = {}
+    if role:
+        params["role"] = f"eq.{role}"
+    return fetch_all("admins", params)
+
+
+def update_admin_last_login(admin_id: str) -> bool:
+    """Update admin last login timestamp."""
+    return update(
+        "admins",
+        {"last_login_at": datetime.now().isoformat()},
+        {"id": f"eq.{admin_id}"},
+    )
+
+
+def delete_admin(admin_id: str) -> bool:
+    """Delete admin."""
+    return delete("admins", {"id": f"eq.{admin_id}"})
 
 
 # ==================== Reservation Operations ====================
@@ -243,46 +286,32 @@ def create_reservation(
     nickname: str,
     commander_number: str,
     server: str,
-    alliance: Optional[str] = None,
     notes: Optional[str] = None,
+    reserved_by: Optional[str] = None,
 ) -> int:
     """Create reservation."""
     blacklisted = check_blacklist(commander_number)
 
-    participants = fetch_all("participants", {"completed": f"eq.1"})
+    participants = fetch_all("participants", {"completed": "eq.1"})
     participants_count = len(participants)
 
-    reservations = fetch_all("reservations", {"status": f"eq.approved"})
+    reservations = fetch_all("reservations")
     approved_reservations_count = len(reservations)
 
     total_count = participants_count + approved_reservations_count
     is_waitlisted = total_count >= MAX_PARTICIPANTS
 
-    waitlist_order = None
-    waitlist_position = None
-    status = "pending"
-
-    if is_waitlisted:
-        waitlist_reservations = fetch_all(
-            "reservations", {"waitlist_order": "not.is.null"}
-        )
-        waitlist_count = len(waitlist_reservations)
-        waitlist_order = waitlist_count + 1
-        waitlist_position = waitlist_order
-        status = "waitlisted"
+    if is_waitlisted or blacklisted:
+        return 0  # Cannot reserve if waitlisted or blacklisted
 
     data = {
         "user_id": user_id,
         "nickname": nickname,
         "commander_number": commander_number,
         "server": server,
-        "alliance": alliance,
         "notes": notes,
-        "is_blacklisted": 1 if blacklisted else 0,
-        "blacklist_reason": blacklisted.get("reason") if blacklisted else None,
-        "status": status,
-        "waitlist_order": waitlist_order,
-        "waitlist_position": waitlist_position,
+        "reserved_by": reserved_by,
+        "reserved_at": datetime.now().isoformat(),
     }
 
     return insert("reservations", data)
@@ -294,38 +323,18 @@ def get_reservation_by_id(reservation_id: str) -> Optional[Dict[str, Any]]:
 
 
 def list_reservations(
-    status: Optional[str] = None,
     user_id: Optional[str] = None,
-    is_blacklisted: Optional[bool] = None,
 ) -> List[Dict[str, Any]]:
     """List reservations."""
     params = {}
-    if status:
-        params["status"] = f"eq.{status}"
     if user_id:
         params["user_id"] = f"eq.{user_id}"
-    if is_blacklisted is not None:
-        params["is_blacklisted"] = f"eq.{1 if is_blacklisted else 0}"
     return fetch_all("reservations", params)
 
 
-def update_reservation_status(
-    reservation_id: str, status: str, approved_by: str
-) -> bool:
-    """Update reservation status."""
-    now = datetime.now().isoformat()
-    return update(
-        "reservations",
-        {"status": status, "approved_at": now, "approved_by": approved_by},
-        {"id": f"eq.{reservation_id}"},
-    )
-
-
 def cancel_reservation(reservation_id: int) -> bool:
-    """Cancel reservation."""
-    return update(
-        "reservations", {"status": "cancelled"}, {"id": f"eq.{reservation_id}"}
-    )
+    """Cancel reservation (delete)."""
+    return delete("reservations", {"id": f"eq.{reservation_id}"})
 
 
 def delete_reservation(reservation_id: int) -> bool:
@@ -340,25 +349,37 @@ def add_to_blacklist(
     commander_number: str,
     nickname: Optional[str] = None,
     reason: Optional[str] = None,
-    added_by: Optional[str] = None,
+    blacklisted_by: Optional[str] = None,
+    server: Optional[str] = None,
+    expires_at: Optional[str] = None,
 ) -> int:
     """Add to blacklist."""
     data = {
         "commander_number": commander_number,
         "nickname": nickname,
+        "server": server,
         "reason": reason,
-        "added_by": added_by,
+        "blacklisted_by": blacklisted_by,
+        "expires_at": expires_at,
     }
     return insert("blacklist", data)
 
 
 def check_blacklist(commander_number: str) -> Optional[Dict[str, Any]]:
     """Check blacklist (local + Google Sheets)."""
-    result = fetch_one(
-        "blacklist", {"commander_number": f"eq.{commander_number}", "is_active": "eq.1"}
-    )
+    result = fetch_one("blacklist", {"commander_number": f"eq.{commander_number}"})
 
     if result:
+        # Check if expired
+        expires_at = result.get("expires_at")
+        if expires_at:
+            try:
+                from datetime import datetime
+
+                if datetime.fromisoformat(expires_at) < datetime.now():
+                    return None  # Expired
+            except Exception:
+                pass
         return result
 
     try:
@@ -413,7 +434,6 @@ def check_blacklist(commander_number: str) -> Optional[Dict[str, Any]]:
                                     "commander_number": commander_number,
                                     "nickname": df.iloc[idx].get("nickname", ""),
                                     "reason": "Google Sheets blacklist",
-                                    "is_active": 1,
                                     "source": "Google Sheets",
                                 }
                         except Exception:
@@ -425,15 +445,13 @@ def check_blacklist(commander_number: str) -> Optional[Dict[str, Any]]:
 
 
 def remove_from_blacklist(commander_number: str) -> bool:
-    """Remove from blacklist."""
-    return update(
-        "blacklist", {"is_active": 0}, {"commander_number": f"eq.{commander_number}"}
-    )
+    """Remove from blacklist (delete)."""
+    return delete("blacklist", {"commander_number": f"eq.{commander_number}"})
 
 
-def list_blacklist(is_active: bool = True) -> List[Dict[str, Any]]:
+def list_blacklist() -> List[Dict[str, Any]]:
     """List blacklist."""
-    return fetch_all("blacklist", {"is_active": f"eq.{1 if is_active else 0}"})
+    return fetch_all("blacklist")
 
 
 # ==================== Server Operations ====================
@@ -635,8 +653,8 @@ def get_participant_count(session_id: str) -> int:
 
 
 def get_approved_reservation_count(session_id: str) -> int:
-    """Get approved reservation count for session."""
-    reservations = fetch_all("reservations", {"status": "eq.approved"})
+    """Get total reservation count for session."""
+    reservations = fetch_all("reservations")
     return len(reservations)
 
 

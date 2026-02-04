@@ -77,7 +77,7 @@ def show_public_status():
             st.metric("남은 자리", "0명", delta="마감", delta_color="inverse")
 
     with col3:
-        waitlist_count = len(db.list_reservations(status="waitlisted"))
+        waitlist_count = 0  # Waitlist system not available in simplified schema
         st.metric("대기자", f"{waitlist_count}명")
 
     # 진행률 바

@@ -88,9 +88,9 @@ def show_reservation_settings():
 
     # 통계 계산
     approved_count = db.get_approved_reservation_count(session_id)
-    pending_count = len(db.list_reservations(status="pending"))
-    waitlisted_count = len(db.list_reservations(status="waitlisted"))
-    rejected_count = len(db.list_reservations(status="rejected"))
+    pending_count = 0  # No status field in simplified schema
+    waitlisted_count = 0  # Waitlist not available
+    rejected_count = 0  # No status field in simplified schema
     max_participants = session.get("max_participants", 180)
 
     # 통계 카드
@@ -152,35 +152,21 @@ def show_reservation_list():
     st.title("📋 예약자 명단 관리")
 
     # 필터
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     with col1:
-        status_filter = st.selectbox(
-            "상태 필터",
-            ["all", "pending", "approved", "rejected", "cancelled", "waitlisted"],
-        )
-    with col2:
         search = st.text_input("사령관번호/닉네임 검색")
-    with col3:
-        is_blacklisted = st.selectbox("블랙리스트", ["all", "yes", "no"])
 
     # 예약 목록 가져오기
     reservations = db.list_reservations()
 
-    # 필터 적용
-    if status_filter != "all":
-        reservations = [r for r in reservations if r.get("status") == status_filter]
-
+    # 검색 적용
     if search:
         reservations = [
             r
             for r in reservations
-            if search in str(r.get("commander_id", ""))
+            if search in str(r.get("commander_number", ""))
             or search in str(r.get("nickname", ""))
         ]
-
-    if is_blacklisted != "all":
-        is_bl = is_blacklisted == "yes"
-        reservations = [r for r in reservations if r.get("is_blacklisted") == is_bl]
 
     # 결과 표시
     st.write(f"**총 {len(reservations)}명**")
@@ -194,12 +180,10 @@ def show_reservation_list():
         # 표시할 컬럼 선택
         display_cols = [
             "nickname",
-            "commander_id",
+            "commander_number",
             "server",
-            "alliance",
-            "status",
-            "is_blacklisted",
             "created_at",
+            "reserved_at",
         ]
         st.dataframe(df[display_cols], use_container_width=True)
 
@@ -207,30 +191,22 @@ def show_reservation_list():
         with st.expander("상세 작업"):
             selected = st.selectbox(
                 "예약 선택",
-                [f"{r['nickname']} ({r['commander_id']})" for r in reservations],
+                [f"{r['nickname']} ({r['commander_number']})" for r in reservations],
             )
             if selected:
                 idx = [
-                    f"{r['nickname']} ({r['commander_id']})" for r in reservations
+                    f"{r['nickname']} ({r['commander_number']})" for r in reservations
                 ].index(selected)
                 res = reservations[idx]
 
                 st.write("### 선택한 예약 정보")
                 st.json(res)
 
-                # 승인/거절 버튼
-                col_approve, col_reject = st.columns(2)
-                if res.get("status") == "pending":
-                    if col_approve.button("✅ 승인"):
-                        db.update_reservation_status(
-                            res["id"], "approved", "current_user"
-                        )
-                        st.rerun()
-                    if col_reject.button("❌ 거절"):
-                        db.update_reservation_status(
-                            res["id"], "rejected", "current_user"
-                        )
-                        st.rerun()
+                # 삭제 버튼
+                if st.button("❌ 예약 취소/삭제"):
+                    db.cancel_reservation(res["id"])
+                    st.success("예약이 취소되었습니다.")
+                    st.rerun()
 
 
 if __name__ == "__main__":

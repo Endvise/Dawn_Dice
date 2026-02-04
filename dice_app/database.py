@@ -5,11 +5,11 @@ Database Management Module - Supabase REST API + Auth
 
 import streamlit as st
 import bcrypt
-from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 import requests
-import json
+
+import config
 
 # Optional Supabase SDK import (for Supabase Auth)
 try:
@@ -21,59 +21,7 @@ except ImportError:
     create_client = None
     Client = None
 
-# Database configuration - lazy loading
-_DB_TYPE = None
-_SUPABASE_URL = None
-_SUPABASE_KEY = None
 _supabase_client = None  # Will hold Supabase Client if available
-
-
-def _get_config():
-    """Lazy load configuration from secrets."""
-    global _DB_TYPE, _SUPABASE_URL, _SUPABASE_KEY
-    if _DB_TYPE is None:
-        try:
-            _DB_TYPE = st.secrets.get("DB_TYPE", "supabase")
-            _SUPABASE_URL = st.secrets.get(
-                "SUPABASE_URL", "https://gticuuzplbemivfturuz.supabase.co"
-            )
-            _SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
-        except Exception:
-            _DB_TYPE = "supabase"
-            _SUPABASE_URL = "https://gticuuzplbemivfturuz.supabase.co"
-            _SUPABASE_KEY = ""
-    return _DB_TYPE, _SUPABASE_URL, _SUPABASE_KEY
-
-
-def get_supabase_client():
-    """Get or create Supabase client instance. Returns None if SDK not available."""
-    global _supabase_client
-    if _supabase_client is None:
-        if not _SUPABASE_SDK_AVAILABLE or not create_client:
-            return None
-        try:
-            _, supabase_url, supabase_key = _get_config()
-            if supabase_key:
-                _supabase_client = create_client(supabase_url, supabase_key)
-        except Exception:
-            pass
-    return _supabase_client
-
-
-def _get_headers():
-    """Get headers for Supabase API."""
-    _, _, supabase_key = _get_config()
-    return {
-        "apikey": supabase_key,
-        "Authorization": f"Bearer {supabase_key}",
-        "Content-Type": "application/json",
-    }
-
-
-def get_supabase_url(table: str) -> str:
-    """Get Supabase REST API URL for a table."""
-    _, supabase_url, _ = _get_config()
-    return f"{supabase_url}/rest/v1/{table}"
 
 
 def execute_query(query: str, params: tuple = (), fetch: bool | str = False) -> Any:
@@ -85,7 +33,7 @@ def supabase_request(
     method: str, table: str, data: Optional[Dict] = None, params: Optional[Dict] = None
 ) -> requests.Response:
     """Make a request to Supabase REST API."""
-    url = get_supabase_url(table)
+    url = config.get_supabase_url(table)
 
     if method.upper() == "GET" and params:
         query_parts = []
@@ -94,14 +42,16 @@ def supabase_request(
         url += "?" + "&".join(query_parts)
         params = None
 
+    headers = config.get_headers()
+
     if method.upper() == "GET":
-        return requests.get(url, headers=_get_headers(), params=params)
+        return requests.get(url, headers=headers, params=params)
     elif method.upper() == "POST":
-        return requests.post(url, headers=_get_headers(), json=data)
+        return requests.post(url, headers=headers, json=data)
     elif method.upper() == "PATCH":
-        return requests.patch(url, headers=_get_headers(), json=data)
+        return requests.patch(url, headers=headers, json=data)
     elif method.upper() == "DELETE":
-        return requests.delete(url, headers=_get_headers())
+        return requests.delete(url, headers=headers)
     else:
         raise ValueError(f"Unsupported method: {method}")
 
@@ -171,10 +121,11 @@ def init_database():
 
 
 def _init_master_account():
-    """Initialize master account from secrets.toml if it doesn't exist."""
+    """Initialize master account from config if it doesn't exist."""
     try:
-        master_username = st.secrets.get("MASTER_USERNAME")
-        master_password = st.secrets.get("MASTER_PASSWORD")
+        auth_config = config.get_config()["auth"]
+        master_username = auth_config["master_username"]
+        master_password = auth_config["master_password"]
 
         if not master_username or not master_password:
             return
@@ -185,10 +136,10 @@ def _init_master_account():
             return  # Master already exists
 
         # Create master account
-        # For master account, we'll use username as commander_number (special case)
+        # For master account, we'll use username as commander_id (special case)
         create_user(
             username=master_username,
-            commander_number="MASTER0000",  # Special ID for master
+            commander_id="MASTER0000",  # Special ID for master
             password=master_password,
             role="master",
             nickname="Master",
@@ -216,7 +167,7 @@ def verify_password(password: str, hashed: str) -> bool:
 
 def create_user(
     username: Optional[str],
-    commander_number: Optional[str],
+    commander_id: Optional[str],
     password: str,
     role: str = "user",
     nickname: Optional[str] = None,
@@ -228,7 +179,7 @@ def create_user(
 
     data = {
         "username": username,
-        "commander_number": commander_number,
+        "commander_id": commander_id,
         "password_hash": password_hash,
         "role": role,
         "nickname": nickname,
@@ -245,13 +196,13 @@ def get_user_by_username(username: str) -> Optional[Dict[str, Any]]:
 
 
 def get_user_by_commander_id(commander_id: str) -> Optional[Dict[str, Any]]:
-    """Get user by commander ID (for backwards compatibility)."""
-    return fetch_one("users", {"commander_number": f"eq.{commander_id}"})
+    """Get user by commander ID."""
+    return fetch_one("users", {"commander_id": f"eq.{commander_id}"})
 
 
 def get_user_by_commander_number(commander_number: str) -> Optional[Dict[str, Any]]:
-    """Get user by commander number."""
-    return fetch_one("users", {"commander_number": f"eq.{commander_number}"})
+    """Get user by commander number (alias)."""
+    return fetch_one("users", {"commander_id": f"eq.{commander_number}"})
 
 
 def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
@@ -716,6 +667,26 @@ def update_session_active(session_id: str, is_active: bool):
 def delete_session(session_id: str):
     """Delete session."""
     return delete("event_sessions", {"id": f"eq.{session_id}"})
+
+
+# ==================== Supabase SDK Client ====================
+
+
+def get_supabase_client():
+    """Get or create Supabase client instance. Returns None if SDK not available."""
+    global _supabase_client
+    if _supabase_client is None:
+        if not _SUPABASE_SDK_AVAILABLE or not create_client:
+            return None
+        try:
+            supabase_config = config.get_config()["supabase"]
+            if supabase_config["service_role_key"]:
+                _supabase_client = create_client(
+                    supabase_config["url"], supabase_config["service_role_key"]
+                )
+        except Exception:
+            pass
+    return _supabase_client
 
 
 # ==================== Supabase Authentication ====================

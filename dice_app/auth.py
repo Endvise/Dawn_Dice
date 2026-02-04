@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-Authentication Management Module - Supabase Auth Integration
+Authentication Management Module
 """
 
 import streamlit as st
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 import database as db
+import config
 
 
 # Session state keys
@@ -33,10 +34,15 @@ def login(username: str, password: str) -> tuple[bool, str]:
     Attempt login - authenticates against Supabase users table.
     Returns: (success, message)
     """
-    # Try Supabase Auth first (if enabled)
-    use_supabase_auth = st.secrets.get("USE_SUPABASE_AUTH", False)
+    # Get auth config
+    auth_config = config.get_config()["auth"]
+    supabase_config = config.get_config()["supabase"]
+
+    # Supabase Auth 사용 여부 확인 (현재는 비활성화 권장)
+    use_supabase_auth = supabase_config["use_auth"]
 
     if use_supabase_auth:
+        # Supabase Auth 시도
         success, message, access_token = db.supabase_sign_in(username, password)
 
         if success and access_token:
@@ -52,9 +58,9 @@ def login(username: str, password: str) -> tuple[bool, str]:
                 st.session_state[SESSION_KEYS["access_token"]] = access_token
                 return True, "Login successful!"
 
-        st.warning("Supabase Auth failed, using database authentication...")
+        st.warning("Supabase Auth 실패, 자체 인증 사용...")
 
-    # Authenticate against users table in Supabase
+    # 자체 인증 (bcrypt) - users 테이블 기반
     user = db.get_user_by_username(username)
 
     if not user:
@@ -66,7 +72,7 @@ def login(username: str, password: str) -> tuple[bool, str]:
     if not user.get("is_active"):
         return False, "Account is disabled."
 
-    max_attempts = st.secrets.get("MAX_LOGIN_ATTEMPTS", 5)
+    max_attempts = auth_config["max_login_attempts"]
     if user.get("failed_attempts", 0) >= max_attempts:
         return False, "Too many failed login attempts. Contact admin."
 
@@ -80,7 +86,7 @@ def login(username: str, password: str) -> tuple[bool, str]:
     st.session_state[SESSION_KEYS["authenticated"]] = True
     st.session_state[SESSION_KEYS["user_id"]] = user["id"]
     st.session_state[SESSION_KEYS["username"]] = user.get("username") or user.get(
-        "commander_number"
+        "commander_id"
     )
     st.session_state[SESSION_KEYS["role"]] = user.get("role", "user")
     st.session_state[SESSION_KEYS["nickname"]] = user.get("nickname", "")
@@ -106,7 +112,8 @@ def is_authenticated() -> bool:
     # Check session timeout
     login_time = st.session_state.get(SESSION_KEYS["login_time"])
     if login_time:
-        timeout_minutes = st.secrets.get("SESSION_TIMEOUT_MINUTES", 60)
+        session_config = config.get_config()["session"]
+        timeout_minutes = session_config["timeout_minutes"]
         if (datetime.now() - login_time) > timedelta(minutes=timeout_minutes):
             logout()
             return False
@@ -251,9 +258,9 @@ def show_user_info():
 
 def get_user_statistics() -> Dict[str, Any]:
     """Return user statistics."""
-    # Reservation count
-    if is_user():
-        my_reservations = db.list_reservations(user_id=get_current_user_id())
+    user_id = get_current_user_id()
+    if is_user() and user_id:
+        my_reservations = db.list_reservations(user_id=str(user_id))
         total_reservations = len(my_reservations)
         pending_reservations = len(
             [r for r in my_reservations if r["status"] == "pending"]

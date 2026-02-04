@@ -113,6 +113,14 @@ venv.bak/
 
 # Streamlit secrets - NEVER commit this!
 .streamlit/secrets.toml
+.streamlit/secrets.local.toml
+.secrets/
+*secrets*
+*service_role*
+
+# Supabase keys - NEVER commit!
+sb_*
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9*
 
 # Environment files - NEVER commit sensitive info!
 .env

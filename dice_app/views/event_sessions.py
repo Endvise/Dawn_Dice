@@ -146,20 +146,28 @@ def show():
                                     st.rerun()
 
                             if is_master:
+                                # Initialize delete confirmation state
+                                if (
+                                    f"delete_confirm_{session['id']}"
+                                    not in st.session_state
+                                ):
+                                    st.session_state[
+                                        f"delete_confirm_{session['id']}"
+                                    ] = False
+
                                 if st.button(
                                     "Delete",
                                     key=f"delete_{session['id']}",
                                     type="secondary",
                                     use_container_width=True,
                                 ):
-                                    st.session_state[f"confirm_{session['id']}"] = (
-                                        "delete"
-                                    )
+                                    st.session_state[
+                                        f"delete_confirm_{session['id']}"
+                                    ] = True
                                     st.rerun()
 
-                                if (
-                                    st.session_state.get(f"confirm_{session['id']}")
-                                    == "delete"
+                                if st.session_state.get(
+                                    f"delete_confirm_{session['id']}"
                                 ):
                                     st.error(
                                         f"Delete Session {session['session_number']}? This cannot be undone."
@@ -170,19 +178,22 @@ def show():
                                             "Yes, Delete",
                                             key=f"yes_delete_{session['id']}",
                                         ):
-                                            delete_session(session["id"])
-                                            st.session_state[
-                                                f"confirm_{session['id']}"
-                                            ] = False
-                                            st.success("Session deleted.")
-                                            st.rerun()
+                                            try:
+                                                delete_session(session["id"])
+                                                st.session_state[
+                                                    f"delete_confirm_{session['id']}"
+                                                ] = False
+                                                st.success("Session deleted.")
+                                                st.rerun()
+                                            except Exception as e:
+                                                st.error(f"Error: {e}")
                                     with col_confirm2:
                                         if st.button(
                                             "No, Cancel",
                                             key=f"no_delete_{session['id']}",
                                         ):
                                             st.session_state[
-                                                f"confirm_{session['id']}"
+                                                f"delete_confirm_{session['id']}"
                                             ] = False
                                             st.rerun()
 

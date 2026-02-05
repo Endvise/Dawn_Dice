@@ -628,7 +628,7 @@ def create_session(
     else:
         session_date_str = session_date
 
-    update("event_sessions", {"is_active": 0}, {"is_active": "eq.1"})
+    update("event_sessions", {"is_active": False}, {"is_active": "eq.True"})
 
     insert(
         "event_sessions",
@@ -640,6 +640,7 @@ def create_session(
             "reservation_open_time": reservation_open_time,
             "reservation_close_time": reservation_close_time,
             "created_by": created_by,
+            "is_active": True,  # 새 세션을 활성 상태로 생성
         },
     )
 
@@ -651,7 +652,7 @@ def get_all_sessions():
 
 def get_active_session():
     """Get active session."""
-    return fetch_one("event_sessions", {"is_active": "eq.1"})
+    return fetch_one("event_sessions", {"is_active": "eq.true"})
 
 
 def get_next_session_number():
@@ -701,7 +702,7 @@ def update_session_active(session_id: str, is_active: bool):
     """Update session active status."""
     return update(
         "event_sessions",
-        {"is_active": 1 if is_active else 0},
+        {"is_active": is_active},
         {"id": f"eq.{session_id}"},
     )
 

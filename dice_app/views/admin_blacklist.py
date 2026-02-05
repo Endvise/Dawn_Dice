@@ -19,7 +19,7 @@ def show():
     st.markdown("---")
 
     # Statistics
-    local_blacklist = db.list_blacklist(is_active=True)
+    local_blacklist = db.list_blacklist()
     total_blacklisted = len(local_blacklist)
 
     col1, col2 = st.columns(2)

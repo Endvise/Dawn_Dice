@@ -324,12 +324,16 @@ def get_reservation_by_id(reservation_id: str) -> Optional[Dict[str, Any]]:
 
 def list_reservations(
     user_id: Optional[str] = None,
+    limit: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """List reservations."""
     params = {}
     if user_id:
         params["user_id"] = f"eq.{user_id}"
-    return fetch_all("reservations", params)
+    results = fetch_all("reservations", params)
+    if limit:
+        results = results[:limit]
+    return results
 
 
 def cancel_reservation(reservation_id: int) -> bool:

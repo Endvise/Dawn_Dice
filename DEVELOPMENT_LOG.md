@@ -937,8 +937,79 @@ user_data = {
 
 ```
 1. Excel로 참여자 Import
-2.Credentials CSV 다운로드
+2. Credentials CSV 다운로드
 3. 관리자가 Manage Users에서 비밀번호 확인
 4. 참여자에게 ID/비밀번호 메시지
 5. 참여자 로그인 후 비밀번호 변경
+```
+
+---
+
+# 16. Excel Import 형식 지정 (2026-02-05)
+
+## 16.1 Excel 형식 요구사항
+
+### 컬럼 파싱 규칙
+
+| Excel 데이터 | 파싱 결과 |
+|-------------|-----------|
+| 10자리 숫자 | 사령관 ID로 사용 |
+| `#000 연맹이름` | 서버: `#000`, 연맹: `연맹이름` |
+| 닉네임 | 빈칸 (사용자 직접 변경) |
+| 중복 사령관 ID | 1개만 남김 |
+
+### 예시
+
+| 소속 | 파싱 결과 |
+|------|-----------|
+| `#12345 GuildName` | 서버: `#12345`, 연맹: `GuildName` |
+| `#99999 NoAlliance` | 서버: `#99999`, 연맹: `NoAlliance` |
+
+## 16.2 처리 로직
+
+```python
+# 1. 10자리 숫자 추출
+match = re.search(r"\d{10}", raw_id)
+commander_id = match.group()  # 1234567890
+
+# 2. 소속 파싱 "#000 alliance_name"
+parts = raw_aff.split(" ", 1)
+server = parts[0]      # #12345
+alliance = parts[1]    # GuildName
+
+# 3. 닉네임은 빈칸
+nickname = ""
+
+# 4. 중복 제거
+seen_commander_ids = set()
+```
+
+## 16.3 Import 결과
+
+| 필드 | 값 |
+|------|-----|
+| commander_id | 1234567890 |
+| nickname | (빈칸) |
+| server | #12345 |
+| alliance | GuildName |
+| password | 자동 생성 (12자리) |
+
+## 16.4 Credentials CSV 출력
+
+| Commander ID | Server | Alliance | Password | Status |
+|--------------|--------|----------|----------|--------|
+| 1234567890 | #12345 | GuildName | xk9sL2mN5pQ | New |
+| 0987654321 | #99999 | NoAlliance | aBcDeFgHiJkL | New |
+
+## 16.5 사용 방법
+
+```
+1. Excel 파일 준비 (소속 형식: #서버번호 연맹이름)
+2. Participants Management → Import Excel
+3. Commander ID 컬럼 선택 (10자리 숫자)
+4. Affiliation 컬럼 선택 (#000 연맹이름 형식)
+5. Preview 확인
+6. Import 클릭
+7. Credentials CSV 다운로드
+8. 참여자에게 배포
 ```

@@ -17,6 +17,10 @@ def show():
     user = auth.get_current_user()
     is_master = auth.is_master()
 
+    # Initialize session state for delete confirmations
+    if "delete_confirm_id" not in st.session_state:
+        st.session_state["delete_confirm_id"] = None
+
     st.title("Event Sessions Management")
     st.markdown("---")
 
@@ -146,28 +150,9 @@ def show():
                                     st.rerun()
 
                             if is_master:
-                                # Initialize delete confirmation state
                                 if (
-                                    f"delete_confirm_{session['id']}"
-                                    not in st.session_state
-                                ):
-                                    st.session_state[
-                                        f"delete_confirm_{session['id']}"
-                                    ] = False
-
-                                if st.button(
-                                    "Delete",
-                                    key=f"delete_{session['id']}",
-                                    type="secondary",
-                                    use_container_width=True,
-                                ):
-                                    st.session_state[
-                                        f"delete_confirm_{session['id']}"
-                                    ] = True
-                                    st.rerun()
-
-                                if st.session_state.get(
-                                    f"delete_confirm_{session['id']}"
+                                    st.session_state.get("delete_confirm_id")
+                                    == session["id"]
                                 ):
                                     st.error(
                                         f"Delete Session {session['session_number']}? This cannot be undone."
@@ -181,8 +166,8 @@ def show():
                                             try:
                                                 delete_session(session["id"])
                                                 st.session_state[
-                                                    f"delete_confirm_{session['id']}"
-                                                ] = False
+                                                    "delete_confirm_id"
+                                                ] = None
                                                 st.success("Session deleted.")
                                                 st.rerun()
                                             except Exception as e:
@@ -192,10 +177,19 @@ def show():
                                             "No, Cancel",
                                             key=f"no_delete_{session['id']}",
                                         ):
-                                            st.session_state[
-                                                f"delete_confirm_{session['id']}"
-                                            ] = False
+                                            st.session_state["delete_confirm_id"] = None
                                             st.rerun()
+                                else:
+                                    if st.button(
+                                        "Delete",
+                                        key=f"delete_{session['id']}",
+                                        type="secondary",
+                                        use_container_width=True,
+                                    ):
+                                        st.session_state["delete_confirm_id"] = session[
+                                            "id"
+                                        ]
+                                        st.rerun()
 
                     with col2:
                         st.markdown("### Reservations")

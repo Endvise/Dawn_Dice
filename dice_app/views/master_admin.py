@@ -14,6 +14,11 @@ def show():
 
     user = auth.get_current_user()
 
+    # user가 None인 경우 처리
+    if not user:
+        st.error("User information not found. Please log in again.")
+        return
+
     st.title("Admin Account Management")
     st.markdown("---")
 
@@ -228,14 +233,11 @@ def show():
                 return
 
             try:
-                admin_id = db.create_user(
+                admin_id = db.create_admin(
                     username=username,
-                    commander_id=None,
                     password=password,
+                    full_name=nickname,
                     role="admin",
-                    nickname=nickname,
-                    server=server if server else None,
-                    alliance=alliance if alliance else None,
                 )
 
                 st.success(f"Admin created! (ID: {admin_id})")

@@ -210,6 +210,13 @@ def update_user(user_id: str, **kwargs) -> bool:
     return update("users", kwargs, {"id": f"eq.{user_id}"})
 
 
+def update_user_password(user_id: str, new_password_hash: str) -> bool:
+    """Update user password."""
+    return update(
+        "users", {"password_hash": new_password_hash}, {"id": f"eq.{user_id}"}
+    )
+
+
 def list_users(is_active: Optional[bool] = None) -> List[Dict[str, Any]]:
     """List users."""
     params = {}
@@ -267,6 +274,13 @@ def update_admin_last_login(admin_id: str) -> bool:
         "admins",
         {"last_login_at": datetime.now().isoformat()},
         {"id": f"eq.{admin_id}"},
+    )
+
+
+def update_admin_password(admin_id: str, new_password_hash: str) -> bool:
+    """Update admin password."""
+    return update(
+        "admins", {"password_hash": new_password_hash}, {"id": f"eq.{admin_id}"}
     )
 
 

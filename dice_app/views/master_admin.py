@@ -270,3 +270,52 @@ def show():
     **Nickname**: {user.get("nickname", "Unknown")}
     **Login Time**: {st.session_state.get("dice_login_time", "Unknown")}
     """)
+
+    st.markdown("---")
+    st.markdown("### 🔐 Change My Password")
+
+    # Password change form for current admin
+    with st.form("admin_change_password_form"):
+        old_password = st.text_input(
+            "Current Password", type="password", key="admin_old_password"
+        )
+        new_password = st.text_input(
+            "New Password",
+            type="password",
+            min_length=8,
+            help="Minimum 8 characters",
+            key="admin_new_password",
+        )
+        confirm_password = st.text_input(
+            "Confirm New Password", type="password", key="admin_confirm_password"
+        )
+
+        submitted = st.form_submit_button(
+            "Change Password", use_container_width=True, type="primary"
+        )
+
+        if submitted:
+            # Validation
+            if not old_password:
+                st.error("Please enter your current password.")
+            elif not new_password:
+                st.error("Please enter a new password.")
+            elif len(new_password) < 8:
+                st.error("New password must be at least 8 characters.")
+            elif new_password != confirm_password:
+                st.error("New passwords do not match.")
+            elif old_password == new_password:
+                st.error("New password must be different from current password.")
+            else:
+                # Attempt to change password
+                success, message = auth.change_admin_password(
+                    user["id"], old_password, new_password
+                )
+
+                if success:
+                    st.success(f"✅ {message}")
+                    st.info("Please log in again with your new password.")
+                    if st.button("Logout"):
+                        auth.logout()
+                else:
+                    st.error(f"❌ {message}")

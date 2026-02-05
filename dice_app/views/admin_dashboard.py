@@ -366,6 +366,16 @@ def show():
 
     st.markdown("---")
 
+    # Admin actions section
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("🔐 Change My Password", use_container_width=True):
+            st.session_state["page"] = "admin_management"
+            st.rerun()
+
+    st.markdown("---")
+
     st.markdown("""
     ### Dashboard Guide
 

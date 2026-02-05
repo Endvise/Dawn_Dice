@@ -56,7 +56,12 @@ def main():
                 # General user menu (English)
                 page = st.radio(
                     "Select Page",
-                    ["🏠 Home", "📝 Make Reservation", "📊 My Reservations"],
+                    [
+                        "🏠 Home",
+                        "📝 Make Reservation",
+                        "📊 My Reservations",
+                        "🔐 Change Password",
+                    ],
                 )
 
             # Admin page variable (compatibility)
@@ -100,6 +105,10 @@ def main():
             import views.my_reservations
 
             views.my_reservations.show()
+        elif page == "🔐 Change Password":
+            import views.change_password
+
+            views.change_password.show()
         elif page == "📊 Dashboard":
             import views.admin_dashboard
 

@@ -105,12 +105,67 @@ def login(username: str, password: str) -> tuple[bool, str]:
 
         return True, "Login successful!"
 
+    # Should not reach here, but return False as fallback
+    return False, "Authentication failed."
+
 
 def logout():
     """Logout."""
     for key, session_key in SESSION_KEYS.items():
         st.session_state[session_key] = None
     st.rerun()
+
+
+def change_user_password(
+    user_id: str, old_password: str, new_password: str
+) -> tuple[bool, str]:
+    """
+    Change user password.
+    Returns: (success, message)
+    """
+    user = db.get_user_by_id(user_id)
+
+    if not user:
+        return False, "User not found."
+
+    # Verify old password
+    if not db.verify_password(old_password, user["password_hash"]):
+        return False, "Current password is incorrect."
+
+    # Hash new password and update
+    new_hash = db.hash_password(new_password)
+    success = db.update_user_password(user_id, new_hash)
+
+    if success:
+        return True, "Password changed successfully!"
+    else:
+        return False, "Failed to update password."
+
+
+def change_admin_password(
+    admin_id: str, old_password: str, new_password: str
+) -> tuple[bool, str]:
+    """
+    Change admin password.
+    Returns: (success, message)
+    """
+    admin = db.get_admin_by_id(admin_id)
+
+    if not admin:
+        return False, "Admin account not found."
+
+    # Verify old password
+    if not db.verify_password(old_password, admin["password_hash"]):
+        return False, "Current password is incorrect."
+
+    # Hash new password and update
+    new_hash = db.hash_password(new_password)
+    success = db.update_admin_password(admin_id, new_hash)
+
+    if success:
+        return True, "Password changed successfully!"
+    else:
+        return False, "Failed to update password."
 
 
 def is_authenticated() -> bool:
@@ -258,7 +313,7 @@ def show_user_info():
     user = get_current_user()
 
     if user:
-        role = get_current_role()
+        role = get_current_role() or ""
         role_labels = {"master": "👑 Master", "admin": "🛡️ Admin", "user": "👤 User"}
         role_label = role_labels.get(role, role)
 

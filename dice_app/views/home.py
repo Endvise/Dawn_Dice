@@ -100,8 +100,8 @@ def get_reservation_status() -> Dict[str, Any]:
             "session_date": None,
             "reservation_open_time": None,
             "reservation_close_time": None,
-            "is_reservation_open": True,  # No session = always open
-            "is_reservation_closed": False,
+            "is_reservation_open": False,  # No session = reservations not open
+            "is_reservation_closed": True,
             "is_session_active": False,
             "overall_total": total_count,
             "overall_max": db.MAX_PARTICIPANTS,
@@ -207,69 +207,16 @@ def show():
                 )
             else:
                 st.info("⏰ **Reservation Closes**: When Full")
-
-        # Countdown timer if reservation is not yet open
-        if (
-            status["reservation_open_time"]
-            and not status["is_reservation_open"]
-            and not status["is_reservation_closed"]
-        ):
-            time_remaining = get_time_remaining(status["reservation_open_time"])
-            if (
-                time_remaining["days"] > 0
-                or time_remaining["hours"] > 0
-                or time_remaining["minutes"] > 0
-                or time_remaining["seconds"] > 0
-            ):
-                st.markdown("### ⏱️ Time Until Reservations Open")
-                col_cd1, col_cd2, col_cd3, col_cd4 = st.columns(4)
-                with col_cd1:
-                    st.metric("Days", time_remaining["days"])
-                with col_cd2:
-                    st.metric("Hours", time_remaining["hours"])
-                with col_cd3:
-                    st.metric("Minutes", time_remaining["minutes"])
-                with col_cd4:
-                    st.metric("Seconds", time_remaining["seconds"])
-
-        st.markdown("---")
-
-        # Capacity and waitlist info
-        st.markdown("### 📊 Capacity Status")
-
-        if status["is_full"]:
-            # Full - waitlist only
-            remaining = status["remaining_spots"]
-            st.error(
-                f"⚠️ **Capacity Exceeded!**\n\n"
-                f"Current: {status['total']} / {status['max']} participants\n"
-                f"Waitlist spots available: {remaining}\n\n"
-                f"💬 **Note**: DM will be sent in-game when your waitlist spot becomes available."
-            )
-        else:
-            # Still spots available
-            remaining = status["max"] - status["total"]
-            st.success(
-                f"🎉 **Reservations Open!**\n\n"
-                f"Current: {status['total']} / {status['max']} participants\n"
-                f"Spots remaining: {remaining}"
-            )
-
-        # Progress bar
-        progress = min(status["total"] / status["max"], 1.0)
-        st.progress(progress)
-
-        # Session details
-        if session_date:
-            st.markdown(f"### 📋 Session Information")
-            st.markdown(f"- **Date**: {session_date}")
-
-        st.markdown("---")
     else:
         # No active session
-        st.success("## ✅ Reservations Open")
-        st.info(f"📊 {status['total']} / {status['max']} participants")
+        st.warning("## 📢 No Active Session")
+        st.info("Reservations are not available at this time.")
+        st.markdown(
+            "Please wait for an administrator to create and activate a session."
+        )
+        st.markdown("---")
 
+    # Overall statistics section (shown regardless of session status)
     st.markdown("---")
 
     # Overall statistics
@@ -383,6 +330,8 @@ def show():
                         )
             elif user and not status["is_session_active"]:
                 st.markdown("### 📝 Make Reservation")
+                st.warning("📢 No active session. Reservations are not available.")
+                st.info("Please wait for an admin to create and activate a session.")
 
                 if st.button(
                     "Go to Reservation",

@@ -857,4 +857,88 @@ return fetch_one("event_sessions", {"is_active": "eq.true"})
 | 상태 | 의미 |
 |------|------|
 | Pre-registered | 관리자가 미리 등록 |
-| Reservation | 사용자가 직접 신청
+| Reservation | 사용자가 직접 신청 |
+
+---
+
+# 15. 관리자 비밀번호 열람 기능 (2026-02-05)
+
+## 15.1 개요
+
+관리자가 참여자에게 배포할 비밀번호를 열람할 수 있는 기능 추가.
+
+## 15.2 데이터베이스 변경
+
+### users 테이블에 plaintext_password 컬럼 추가
+```sql
+ALTER TABLE public.users
+ADD COLUMN IF NOT EXISTS plaintext_password text;
+```
+
+**SQL 파일**: `.sisyphus/add_plaintext_password.sql`
+
+## 15.3 기능 설명
+
+### 관리자만 접근 가능
+- Manage Users 탭은 `auth.require_login(required_role="admin")`로 보호
+- 일반 사용자는 비밀번호 열람 불가
+
+### 비밀번호 열람 UI
+```
+1. Manage Users 탭 이동
+2. 사용자 확장 (Expander) 클릭
+3. 👁️ 버튼으로 비밀번호 토글
+4. 전체 비밀번호 보기는 "Show All Passwords" 체크박스
+```
+
+### 비밀번호 재설정
+- 관리자가 비밀번호 재설정 가능
+- 새 비밀번호 자동 생성 + 저장
+- 즉시 열람 가능
+
+## 15.4 Import Excel과 연동
+
+### 새 사용자 등록 시
+```python
+# users 테이블에 평문 비밀번호 저장
+user_data = {
+    "commander_number": igg_id,
+    "nickname": nickname,
+    "password_hash": hash,      # 해시 (인증용)
+    "plaintext_password": pw,  # 평문 (관리자 열람용)
+    ...
+}
+```
+
+### 기존 사용자
+- 처음 저장된 비밀번호가 없으면 자동 저장
+- 이미 있으면 기존 값 유지
+
+## 15.5 Credentials 다운로드
+
+### 개별 다운로드
+- Import 완료 시 CSV 다운로드
+- Nickname, Commander ID, Password 포함
+
+### 전체 다운로드
+- Manage Users 탭에서 "Download All Credentials"
+- 모든 사용자의 비밀번호 포함 CSV
+
+## 15.6 보안 고려사항
+
+| 항목 | 설명 |
+|------|------|
+| 접근 제어 | 관리자만 열람 가능 |
+| 저장 방식 | 평문 저장 (RLS 미적용) |
+| 용도 | 초기 비밀번호 배포용 |
+| 변경 시 | 사용자가 비밀번호 변경 권장 |
+
+## 15.7 사용 워크플로우
+
+```
+1. Excel로 참여자 Import
+2.Credentials CSV 다운로드
+3. 관리자가 Manage Users에서 비밀번호 확인
+4. 참여자에게 ID/비밀번호 메시지
+5. 참여자 로그인 후 비밀번호 변경
+```

@@ -155,10 +155,8 @@ def show():
                 # Create user
                 try:
                     user_id = db.create_user(
-                        username=None,
-                        commander_id=commander_id,
+                        commander_number=commander_id,
                         password=password,
-                        role="user",
                         nickname=nickname,
                         server=server,
                         alliance=alliance if alliance else None,

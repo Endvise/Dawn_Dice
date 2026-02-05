@@ -304,10 +304,17 @@ def show():
                 st.error("Enter session name.")
                 return
 
+            # user_id가 None인지 확인
+            user_id = user.get("id") if user else None
+            if not user_id:
+                st.error("User ID not found. Please log in again.")
+                return
+
             if enable_open_time and enable_close_time:
-                if reservation_open_time >= reservation_close_time:
-                    st.error("Open time must be before close time.")
-                    return
+                if reservation_open_time and reservation_close_time:
+                    if reservation_open_time >= reservation_close_time:
+                        st.error("Open time must be before close time.")
+                        return
 
             try:
                 create_session(
@@ -315,7 +322,7 @@ def show():
                     session_name=session_name,
                     session_date=session_date,
                     max_participants=max_participants,
-                    created_by=user["id"],
+                    created_by=user_id,
                     reservation_open_time=reservation_open_time.strftime(
                         "%Y-%m-%d %H:%M:%S"
                     )

@@ -198,27 +198,18 @@ def show():
 
                         st.metric("Total", f"{len(session_reservations)}")
 
-                        pending = len(
-                            [
-                                r
-                                for r in session_reservations
-                                if r["status"] == "pending"
-                            ]
-                        )
-                        approved = len(
-                            [
-                                r
-                                for r in session_reservations
-                                if r["status"] == "approved"
-                            ]
-                        )
-                        waitlisted = len(
-                            [
-                                r
-                                for r in session_reservations
-                                if r["status"] == "waitlisted"
-                            ]
-                        )
+                        pending = 0
+                        approved = 0
+                        waitlisted = 0
+
+                        for r in session_reservations:
+                            status = r.get("status") or ""
+                            if status == "pending":
+                                pending += 1
+                            elif status == "approved":
+                                approved += 1
+                            elif status == "waitlisted":
+                                waitlisted += 1
 
                         st.markdown(f"""
                         - Pending: {pending}

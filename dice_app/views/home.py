@@ -174,20 +174,20 @@ def show():
 
         # Prominent session header
         if session_number:
-            st.markdown(f"## 🎯 제 {session_number}회차 예약")
+            st.markdown(f"## 🎯 Session {session_number}")
         if session_name:
             st.markdown(f"### 📅 {session_name}")
 
         # Reservation status display
         if status["is_reservation_closed"]:
-            st.error("## ⛔ 예약 마감")
+            st.error("## ⛔ Reservations Closed")
         elif status["is_reservation_open"]:
             if status["is_full"]:
-                st.warning("## ⏳ 대기 등록만 가능")
+                st.warning("## ⏳ Waitlist Only")
             else:
-                st.success("## ✅ 예약 접수 중")
+                st.success("## ✅ Reservations Open")
         else:
-            st.info("## ⏰ 예약 오픈 예정")
+            st.info("## ⏰ Reservations Opening Soon")
 
         # Time information
         col_time1, col_time2 = st.columns(2)
@@ -195,18 +195,18 @@ def show():
         with col_time1:
             if status["reservation_open_time"]:
                 st.info(
-                    f"📅 **예약 오픈 시간**: {format_datetime(status['reservation_open_time'])}"
+                    f"📅 **Reservation Opens**: {format_datetime(status['reservation_open_time'])}"
                 )
             else:
-                st.info("📅 **예약 오픈 시간**: 즉시")
+                st.info("📅 **Reservation Opens**: Immediate")
 
         with col_time2:
             if status["reservation_close_time"]:
                 st.info(
-                    f"⏰ **예약 마감 시간**: {format_datetime(status['reservation_close_time'])}"
+                    f"⏰ **Reservation Closes**: {format_datetime(status['reservation_close_time'])}"
                 )
             else:
-                st.info("⏰ **예약 마감 시간**: 정원 소진 시")
+                st.info("⏰ **Reservation Closes**: When Full")
 
         # Countdown timer if reservation is not yet open
         if (
@@ -221,38 +221,38 @@ def show():
                 or time_remaining["minutes"] > 0
                 or time_remaining["seconds"] > 0
             ):
-                st.markdown("### ⏱️ 예약 오픈까지 남은 시간")
+                st.markdown("### ⏱️ Time Until Reservations Open")
                 col_cd1, col_cd2, col_cd3, col_cd4 = st.columns(4)
                 with col_cd1:
-                    st.metric("일", time_remaining["days"])
+                    st.metric("Days", time_remaining["days"])
                 with col_cd2:
-                    st.metric("시", time_remaining["hours"])
+                    st.metric("Hours", time_remaining["hours"])
                 with col_cd3:
-                    st.metric("분", time_remaining["minutes"])
+                    st.metric("Minutes", time_remaining["minutes"])
                 with col_cd4:
-                    st.metric("초", time_remaining["seconds"])
+                    st.metric("Seconds", time_remaining["seconds"])
 
         st.markdown("---")
 
         # Capacity and waitlist info
-        st.markdown("### 📊 정원 현황")
+        st.markdown("### 📊 Capacity Status")
 
         if status["is_full"]:
-            # 정원 초과 - 대기 등록만 가능
+            # Full - waitlist only
             remaining = status["remaining_spots"]
             st.error(
-                f"⚠️ **정원이 초과되었습니다!**\n\n"
-                f"현재 {status['total']} / {status['max']}명 참여 중\n"
-                f"대기 등록 가능 자리: {remaining}자리\n\n"
-                f"💬 **대기 등록 시 관리자가 인게임에서 별도로 DM을 보낼 예정입니다.**"
+                f"⚠️ **Capacity Exceeded!**\n\n"
+                f"Current: {status['total']} / {status['max']} participants\n"
+                f"Waitlist spots available: {remaining}\n\n"
+                f"💬 **Note**: DM will be sent in-game when your waitlist spot becomes available."
             )
         else:
-            # 정원 남아있음
+            # Still spots available
             remaining = status["max"] - status["total"]
             st.success(
-                f"🎉 **예약 접수 중!**\n\n"
-                f"현재 {status['total']} / {status['max']}명 참여 중\n"
-                f"남은 자리: {remaining}자리"
+                f"🎉 **Reservations Open!**\n\n"
+                f"Current: {status['total']} / {status['max']} participants\n"
+                f"Spots remaining: {remaining}"
             )
 
         # Progress bar
@@ -261,14 +261,14 @@ def show():
 
         # Session details
         if session_date:
-            st.markdown(f"### 📋 세션 정보")
-            st.markdown(f"- **일시**: {session_date}")
+            st.markdown(f"### 📋 Session Information")
+            st.markdown(f"- **Date**: {session_date}")
 
         st.markdown("---")
     else:
         # No active session
-        st.success("## ✅ 예약 접수 중")
-        st.info(f"📊 {status['total']} / {status['max']}명 참여 중")
+        st.success("## ✅ Reservations Open")
+        st.info(f"📊 {status['total']} / {status['max']} participants")
 
     st.markdown("---")
 
@@ -277,17 +277,17 @@ def show():
 
     with col1:
         st.metric(
-            "현재 참여자",
+            "Current Participants",
             f"{status['overall_total']} / {status['overall_max']}",
         )
 
     with col2:
-        st.metric("예약 확정", f"{status['approved']}")
+        st.metric("Approved Reservations", f"{status['approved']}")
 
     with col3:
-        st.metric("남은 자리", f"{status['overall_max'] - status['overall_total']}")
-
-    st.markdown("---")
+        st.metric(
+            "Spots Remaining", f"{status['overall_max'] - status['overall_total']}"
+        )
 
     st.markdown("---")
 
@@ -295,7 +295,7 @@ def show():
     if auth.is_authenticated():
         user = auth.get_current_user()
 
-        st.markdown("### 👤 안녕하세요!")
+        st.markdown("### 👤 Welcome!")
 
         # Blacklist check
         if user:
@@ -304,17 +304,17 @@ def show():
                 blacklisted = db.check_blacklist(commander_number)
 
                 if blacklisted:
-                    st.error("⛔ 블랙리스트에 등록되어 있습니다.")
-                    st.info("관리자에게 문의하세요.")
+                    st.error("⛔ You are on the blacklist.")
+                    st.info("Please contact the administrator.")
                     return
 
         # User info display
         if user:
             st.markdown(f"""
-            - **닉네임**: {user.get("nickname", "Unknown")}
-            - **사령관번호**: {user.get("commander_number", "N/A")}
-            - **서버**: {user.get("server", "N/A")}
-            - **연맹**: {user.get("alliance", "없음") if user.get("alliance") else "없음"}
+            - **Nickname**: {user.get("nickname", "Unknown")}
+            - **Commander ID**: {user.get("commander_number", "N/A")}
+            - **Server**: {user.get("server", "N/A")}
+            - **Alliance**: {user.get("alliance", "None") if user.get("alliance") else "None"}
             """)
 
         # My reservations status
@@ -326,44 +326,44 @@ def show():
                 latest_reservation = my_reservations[0]
 
                 st.markdown("---")
-                st.markdown("### 📊 내 예약 현황")
+                st.markdown("### 📊 My Reservation Status")
 
-                st.success(f"🎉 예약이 완료되었습니다!")
+                st.success(f"🎉 Your reservation is confirmed!")
 
                 st.markdown(
-                    f"**예약일시**: {latest_reservation.get('created_at', 'N/A')}"
+                    f"**Reservation Date**: {latest_reservation.get('created_at', 'N/A')}"
                 )
 
                 # Queue position info
                 st.markdown("---")
-                st.markdown("### ⏰ 예약 순서")
+                st.markdown("### ⏰ Queue Position")
 
                 total = status["total"]
                 max_capacity = status["max"]
 
                 if total < max_capacity:
-                    st.success(f"현재 {total}번째 예약자입니다. (정원 내)")
+                    st.success(f"You are #{total} in queue (within capacity)")
                 else:
                     position = total - max_capacity + 1
-                    st.warning(f"현재 {total}번째 예약자입니다. (대기 {position}번째)")
+                    st.warning(f"You are #{total} in queue (waitlist #{position})")
 
             # New reservation guide
         if not my_reservations:
-            st.info("아직 예약이 없습니다.")
+            st.info("No reservation yet.")
             st.markdown("---")
 
             # Show reservation button only if reservation is open
             if user and status["is_session_active"]:
                 if status["is_reservation_open"]:
                     if not status["is_full"]:
-                        st.markdown("### 📝 예약 신청")
-                        st.info("아래 버튼을 클릭하여 예약을 진행하세요!")
+                        st.markdown("### 📝 Make Reservation")
+                        st.info("Click the button below to make your reservation!")
                     else:
                         st.warning(
-                            "⚠️ 현재 정원이 초과되었습니다. 대기 등록만 가능합니다."
+                            "⚠️ Current session is full. Only waitlist registration available."
                         )
                     if st.button(
-                        "예약 신청하기",
+                        "Go to Reservation",
                         use_container_width=True,
                         type="primary",
                         key=f"home_go_to_reservation_{user['id']}"
@@ -373,19 +373,19 @@ def show():
                         st.session_state["page"] = "📝 Make Reservation"
                         st.rerun()
                 elif status["is_reservation_closed"]:
-                    st.error("⛔ 예약이 마감되었습니다.")
+                    st.error("⛔ Reservations are closed.")
                 else:
                     # Reservation not yet open
-                    st.warning("⏰ 예약이 아직 열리지 않았습니다.")
+                    st.warning("⏰ Reservations are not open yet.")
                     if status["reservation_open_time"]:
                         st.info(
-                            f"📅 예약 오픈 시간: {format_datetime(status['reservation_open_time'])}"
+                            f"📅 Reservations open at: {format_datetime(status['reservation_open_time'])}"
                         )
             elif user and not status["is_session_active"]:
-                st.markdown("### 📝 예약 신청")
+                st.markdown("### 📝 Make Reservation")
 
                 if st.button(
-                    "예약 신청하기",
+                    "Go to Reservation",
                     use_container_width=True,
                     type="primary",
                     key=f"home_go_to_reservation_{user['id']}"
@@ -396,27 +396,27 @@ def show():
                     st.rerun()
 
     else:
-        st.markdown("### 👋 환영합니다!")
-        st.markdown("DaWn Dice Party에 오신 것을 환영합니다!")
+        st.markdown("### 👋 Welcome!")
+        st.markdown("Welcome to DaWn Dice Party!")
         st.markdown("---")
 
         # Login button area (left aligned)
         col1, col2, col3 = st.columns([2, 1, 1])
 
         with col1:
-            st.markdown("### 📝 로그인")
+            st.markdown("### 📝 Login")
 
             # Login form
             with st.form("login_form"):
                 username = st.text_input(
-                    "사령관번호 또는 아이디", key="home_login_username"
+                    "Commander ID or Username", key="home_login_username"
                 )
                 password = st.text_input(
-                    "비밀번호", type="password", key="home_login_password"
+                    "Password", type="password", key="home_login_password"
                 )
 
                 submitted = st.form_submit_button(
-                    "로그인", use_container_width=True, type="primary"
+                    "Login", use_container_width=True, type="primary"
                 )
 
                 if submitted:
@@ -429,79 +429,42 @@ def show():
                         st.error(message)
 
             # Sign Up button (outside form)
-            if st.button("회원가입", use_container_width=True, key="home_register"):
+            if st.button("Sign Up", use_container_width=True, key="home_register"):
                 st.session_state["show_register"] = True
                 st.rerun()
 
         st.markdown("---")
 
         # Main information
-        st.markdown("### 📋 안내사항")
+        st.markdown("### 📋 Information")
 
         st.markdown("""
-        - **선착순 예약**: 먼저 예약하는 사람이 우선순위
-        - **최대 참여자**: 세션당 180명
-        - **대기자 시스템**: 정원 초과 시 자동 대기로 등록
-        - **사령관번호**: 10자리 숫자로 가입
-        - **비밀번호**: 최소 8자 이상
+        - **First-come, first-served**: First to reserve gets priority
+        - **Maximum participants**: 180 per session
+        - **Waitlist system**: Auto waitlist when capacity exceeded
+        - **Commander ID**: 10-digit number
+        - **Password**: Minimum 8 characters
 
-        ## 세션 기반 시스템
+        ## Session-based System
 
-        - 세션이 가득 차면 자동으로 대기자 등록으로 전환
-        - 기존 참여자는 우선순위
-        - 새로운 참여자는 새로운 세션에서 예약 가능
-        - 정원 초과 시 '정원 초과 - 대기자 등록만 가능' 메시지 표시
+        - When full, auto switch to waitlist
+        - Previous participants get priority
+        - New participants join new sessions
+        - Shows 'Waitlist Only' when full
 
-        ## 우선순위 시스템
+        ## Priority System
 
-        **1순위**: 기존 참여자 (이전 세션 참여자)
-        - 정원 내에서는 예약 순서대로 참여 가능
+        **1st Priority**: Previous participants
+        - Within capacity: Reserve in order
 
-        **2순위**: 세션별 선착순 예약
-        - 예약 순서대로 참여 가능
+        **2nd Priority**: First-come reservation
+        - Reserve in order
 
-        ## 정원 초과 시
+        ## When Full
 
-        - 정원 초과 시 '제N회차 정원 초과 - 대기자 등록만 가능' 메시지 표시
-        - 대기자 번호는 예약 순서대로 배정됩니다.
+        - Shows 'Waitlist Only' message
+        - Waitlist number assigned by order
         """)
-
-        st.markdown("---")
-
-        # Announcements display
-        st.markdown("### 📢 공지사항")
-
-        # Latest announcements display (maximum 5, pinned first)
-        announcements = db.list_announcements(is_active=True, limit=5)
-
-        # Pinned announcements first
-        pinned = [a for a in announcements if a.get("is_pinned")]
-        regular = [a for a in announcements if not a.get("is_pinned")]
-
-        display_announcements = (pinned + regular[:3]) if regular else pinned
-
-        if display_announcements:
-            for ann in display_announcements:
-                # Category badge
-                category_badge = {
-                    "notice": "📢",
-                    "guide": "ℹ️",
-                    "event": "🎉",
-                }
-
-                badge = category_badge.get(ann.get("category", "notice"), "📢")
-
-                # Pinned indicator
-                pin_indicator = " 📌 고정" if ann.get("is_pinned") else ""
-
-                with st.expander(f"{badge} {ann['title']}{pin_indicator}"):
-                    st.markdown(ann["content"])
-
-                    st.markdown(
-                        f"작성자: {ann.get('author_name', 'Unknown')} | 작성일: {ann.get('created_at', 'N/A')}"
-                    )
-        else:
-            st.info("등록된 공지사항이 없습니다.")
 
         st.markdown("---")
 
@@ -524,9 +487,6 @@ def show():
                     "notice": "📢",
                     "guide": "ℹ️",
                     "event": "🎉",
-                    "notice": "📢",
-                    "guide": "ℹ️",
-                    "event": "🎉",
                 }
 
                 badge = category_badge.get(ann.get("category", "notice"), "📢")
@@ -538,28 +498,28 @@ def show():
                     st.markdown(ann["content"])
 
                     st.markdown(
-                        f"작성자: {ann.get('author_name', 'Unknown')} | 작성일: {ann.get('created_at', 'N/A')}"
+                        f"Author: {ann.get('author_name', 'Unknown')} | Date: {ann.get('created_at', 'N/A')}"
                     )
         else:
-            st.info("등록된 공지사항이 없습니다.")
+            st.info("No announcements yet.")
 
     # Footer
     st.markdown("---")
     st.markdown(
-        "<div style='text-align: center; color: gray;'>©2026 DaWn Dice Party by Entity</div>",
+        "<div style='text-align: center; color: gray;'>©2026 DaWn Dice Party</div>",
         unsafe_allow_html=True,
     )
 
     # Admin-only messages
     if auth.is_admin():
         st.markdown("---")
-        st.info("관리자 메뉴")
+        st.info("Admin Menu")
 
         # Admin dashboard link
-        st.markdown("[📊 대시보드로 이동 - 현재 상태 확인")
+        st.markdown("[📊 Go to Dashboard")
 
         # Admin announcements link
-        st.markdown("[📢 공지사항 관리로 이동 - 세션 공지 작성")
+        st.markdown("[📢 Go to Announcements")
 
         # Admin event sessions link
-        st.markdown("[🎲 세션 관리로 이동 - 예약 관리")
+        st.markdown("[🎲 Go to Event Sessions")

@@ -14,6 +14,11 @@ def show():
 
     user = auth.get_current_user()
 
+    # user가 None인 경우 처리
+    if not user:
+        st.error("User information not found. Please log in again.")
+        return
+
     st.title("My Reservations")
     st.markdown("---")
 

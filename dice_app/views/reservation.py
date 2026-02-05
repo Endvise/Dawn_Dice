@@ -15,9 +15,15 @@ def show():
 
     user = auth.get_current_user()
 
+    # user가 None인 경우 처리
+    if not user:
+        st.error("User information not found. Please log in again.")
+        return
+
     # Blacklist check
-    if user.get("commander_number"):
-        blacklisted = db.check_blacklist(user["commander_number"])
+    commander_number = user.get("commander_number", "")
+    if commander_number:
+        blacklisted = db.check_blacklist(commander_number)
 
         if blacklisted:
             st.error(
@@ -92,11 +98,14 @@ def show():
                 "Submit Reservation", use_container_width=True, type="primary"
             ):
                 try:
+                    # 서버가 비어 있으면 회원가입 시 저장된 값 사용
+                    reservation_server = server if server else user.get("server", "")
+
                     reservation_id = db.create_reservation(
                         user_id=user["id"],
                         nickname=user.get("nickname", ""),
                         commander_number=user.get("commander_number", ""),
-                        server=server,
+                        server=reservation_server,
                         notes=notes if notes else None,
                     )
 

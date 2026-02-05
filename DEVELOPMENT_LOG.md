@@ -1148,6 +1148,58 @@ for r in session_reservations:
 
 ---
 
+# 20. 관리자 설정 및 공개 페이지 영어 전환 (2026-02-05)
+
+## 20.1 문제
+
+- `admin_reservation_settings.py` 한글로 표시
+- `public_status.py` 한글로 표시
+
+## 20.2 수정된 파일
+
+| 파일 | 변경 사항 |
+|------|----------|
+| `dice_app/views/admin_reservation_settings.py` | 전체 UI 영어로 변경 |
+| `dice_app/views/public_status.py` | 전체 UI 영어로 변경 |
+
+## 20.3 주요 변경 항목
+
+### admin_reservation_settings.py
+| 이전 | 이후 |
+|------|------|
+| 예약 설정 관리 | Reservation Settings |
+| 예약 오픈됨/마감됨 | Reservations are OPEN/CLOSED |
+| 예약 오픈 시간/마감 시간 | Reservation Open/Close Time |
+| 승인됨/대기 중/대기자/거절됨 | Approved/Pending/Waitlist/Rejected |
+| 정원이 초과되었습니다! | Capacity exceeded! |
+
+### public_status.py
+| 이전 | 이후 |
+|------|------|
+| 예약 현황 - DaWn Dice Party | Reservation Status - DaWn Dice Party |
+| 예약이 가능합니다! | Reservations are OPEN! |
+| 예약 방법 | How to Reserve |
+| 남은 자리 | Remaining Spots |
+approved = 0
+waitlisted = 0
+
+for r in session_reservations:
+    status = r.get("status") or ""
+    if status == "pending":
+        pending += 1
+    elif status == "approved":
+        approved += 1
+    elif status == "waitlisted":
+        waitlisted += 1
+```
+
+## 19.4 테스트 결과
+
+- 에러 없이 세션 관리 페이지 로드 ✅
+- 예약 카운트 표시 정상 작동
+
+---
+
 # 20. 세션 Created By 표시 수정 (2026-02-05)
 
 ## 20.1 문제

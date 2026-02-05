@@ -16,8 +16,8 @@ def show():
     user = auth.get_current_user()
 
     # Blacklist check
-    if user.get("commander_id"):
-        blacklisted = db.check_blacklist(user["commander_id"])
+    if user.get("commander_number"):
+        blacklisted = db.check_blacklist(user["commander_number"])
 
         if blacklisted:
             st.error(
@@ -32,50 +32,43 @@ def show():
     col1, col2, col3 = st.columns([1, 2, 1])
 
     with col2:
-        # User info display
+        # User info display - show saved server/alliance from registration
         st.markdown("### User Info")
         st.info(f"""
         - **Nickname**: {user.get("nickname", "Unknown")}
-        - **Commander ID**: {user.get("commander_id", "N/A")}
-        - **Server**: {user.get("server", "N/A")}
-        - **Alliance**: {user.get("alliance", "N/A") if user.get("alliance") else "None"}
+        - **Commander ID**: {user.get("commander_number", "N/A")}
+        - **Server**: {user.get("server", "N/A")} (saved from registration)
+        - **Alliance**: {user.get("alliance", "N/A") if user.get("alliance") else "None"} (saved from registration)
         """)
 
         st.markdown("---")
 
-        # Reservation form
+        # Reservation form - server/alliance pre-filled from registration
         st.markdown("### Reservation Info")
 
-        # Server input
+        # Server input - pre-filled from registration but editable
         server = st.text_input(
-            "Server", value=user.get("server", ""), placeholder="e.g., #095 woLF"
+            "Server",
+            value=user.get("server", ""),
+            placeholder="e.g., #095 woLF",
+            help="Pre-filled from your registration info",
         )
 
-        # Alliance (optional)
+        # Alliance (optional) - pre-filled from registration but editable
         alliance = st.text_input(
             "Alliance",
             value=user.get("alliance", ""),
             placeholder="Enter your alliance if any",
+            help="Pre-filled from your registration info",
         )
 
         # Current participant count
-        result = execute_query(
-            "SELECT COUNT(*) as count FROM participants WHERE completed = 1",
-            fetch="one",
-        )
-        try:
-            participants_count = result["count"] if result and "count" in result else 0
-        except (TypeError, KeyError):
-            participants_count = 0
+        participants = db.list_participants()
+        participants_count = len([p for p in participants if p.get("completed")])
 
-        result = execute_query(
-            "SELECT COUNT(*) as count FROM reservations WHERE status = 'approved'",
-            fetch="one",
-        )
-        try:
-            approved_count = result["count"] if result and "count" in result else 0
-        except (TypeError, KeyError):
-            approved_count = 0
+        # Approved reservations count
+        all_reservations = db.list_reservations()
+        approved_count = len(all_reservations)
 
         total_count = participants_count + approved_count
 
@@ -102,28 +95,19 @@ def show():
                     reservation_id = db.create_reservation(
                         user_id=user["id"],
                         nickname=user.get("nickname", ""),
-                        commander_id=user.get("commander_id", ""),
+                        commander_number=user.get("commander_number", ""),
                         server=server,
-                        alliance=alliance if alliance else None,
                         notes=notes if notes else None,
                     )
 
-                    # Blacklist warning
-                    reservation = db.get_reservation_by_id(reservation_id)
-
-                    if reservation and reservation.get("status") == "waitlisted":
-                        waitlist_order = reservation.get("waitlist_order")
-                        st.warning(
-                            f"Added to waiting list. Waitlist number: {waitlist_order}"
-                        )
-                    elif reservation and reservation.get("status") == "pending":
+                    # Reservation submitted
+                    if reservation_id > 0:
                         st.success(
                             f"Reservation submitted! (Reservation ID: {reservation_id})"
                         )
-
-                    if reservation and reservation.get("is_blacklisted"):
-                        st.warning(
-                            f"Your Commander ID is on the blacklist. (Reason: {reservation.get('blacklist_reason', 'N/A')})"
+                    else:
+                        st.error(
+                            "Failed to create reservation. You may be blacklisted or capacity is full."
                         )
 
                 except Exception as e:
@@ -148,25 +132,11 @@ def show():
 
         if my_reservations:
             for res in my_reservations:
-                status_color = {
-                    "pending": "🟡",
-                    "approved": "🟢",
-                    "rejected": "🔴",
-                    "cancelled": "⚪",
-                }
-
-                status_label = (
-                    status_color.get(res["status"], "❓") + " " + res["status"].upper()
-                )
-
                 st.markdown(f"""
-                **{status_label}** - {res["created_at"]}
-                - Server: {res["server"]}
-                - Alliance: {res["alliance"] if res["alliance"] else "None"}
+                **{res["created_at"]}**
+                - Server: {res.get("server", "N/A")}
+                - Alliance: {res.get("alliance", "N/A") if res.get("alliance") else "None"}
                 """)
-
-                if res.get("is_blacklisted"):
-                    st.warning(f"Blacklist: {res.get('blacklist_reason', 'N/A')}")
 
                 if res.get("notes"):
                     st.text(f"Notes: {res['notes']}")

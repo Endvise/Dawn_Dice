@@ -608,6 +608,12 @@ def create_session(
     reservation_close_time: Optional[str] = None,
 ):
     """Create session."""
+    # date 타입을 문자열로 변환
+    if hasattr(session_date, "strftime"):
+        session_date_str = session_date.strftime("%Y-%m-%d")
+    else:
+        session_date_str = session_date
+
     update("event_sessions", {"is_active": 0}, {"is_active": "eq.1"})
 
     insert(
@@ -615,7 +621,7 @@ def create_session(
         {
             "session_number": session_number,
             "session_name": session_name,
-            "session_date": session_date,
+            "session_date": session_date_str,
             "max_participants": max_participants,
             "reservation_open_time": reservation_open_time,
             "reservation_close_time": reservation_close_time,

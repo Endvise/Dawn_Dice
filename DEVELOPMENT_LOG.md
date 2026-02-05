@@ -1103,3 +1103,46 @@ st.markdown("Please wait for an administrator to create and activate a session."
 | 대기명단 | ✅ | ✅ (가득참) | ⏳ Waitlist Only |
 | **세션없음** | ❌ | ❌ | **📢 No Active Session** |
 
+---
+
+# 19. 이벤트 세션 KeyError 수정 (2026-02-05)
+
+## 19.1 문제
+
+```
+KeyError: This app has encountered an error.
+File "/mount/src/dawn_dice/dice_app/views/event_sessions.py", line 144, in show
+    if r["status"] == "pending"
+```
+
+## 19.2 원인
+
+- `r["status"]`를 직접 접근하는데 `status` 컬럼이 없음
+- Supabase 스키마에서 `status` 컬럼을 제거함
+
+## 19.3 수정 내용
+
+```python
+# 수정 전 (에러 발생)
+pending = len([r for r in session_reservations if r["status"] == "pending"])
+
+# 수정 후 (.get() 사용)
+pending = 0
+approved = 0
+waitlisted = 0
+
+for r in session_reservations:
+    status = r.get("status") or ""
+    if status == "pending":
+        pending += 1
+    elif status == "approved":
+        approved += 1
+    elif status == "waitlisted":
+        waitlisted += 1
+```
+
+## 19.4 테스트 결과
+
+- 에러 없이 세션 관리 페이지 로드 ✅
+- 예약 카운트 표시 정상 작동
+

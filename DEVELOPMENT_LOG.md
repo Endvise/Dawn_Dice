@@ -1146,3 +1146,44 @@ for r in session_reservations:
 - 에러 없이 세션 관리 페이지 로드 ✅
 - 예약 카운트 표시 정상 작동
 
+---
+
+# 20. 세션 Created By 표시 수정 (2026-02-05)
+
+## 20.1 문제
+
+```
+**Created By**: {session.get("creator_name", "Unknown")}
+```
+
+`creator_name` 컬럼이 존재하지 않아 항상 "Unknown" 표시
+
+## 20.2 원인
+
+- `event_sessions` 테이블에 `creator_name` 컬럼 없음
+- `created_by`에는 사용자 ID만 저장됨
+
+## 20.3 수정 내용
+
+```python
+# 수정 전
+**Created By**: {session.get("creator_name", "Unknown")}
+
+# 수정 후 - created_by ID로 사용자 정보 조회
+created_by = session.get("created_by", "")
+creator_name = "Unknown"
+if created_by:
+    admin = db.get_admin_by_id(created_by)
+    if admin:
+        creator_name = admin.get("nickname") or admin.get("username", "Unknown")
+    else:
+        user = db.get_user_by_id(created_by)
+        if user:
+            creator_name = user.get("nickname", "Unknown")
+```
+
+## 20.4 결과
+
+- 세션 생성자 이름이 올바르게 표시됨
+- 관리자와 일반 사용자 모두 지원
+

@@ -10,63 +10,64 @@ from datetime import datetime
 
 def show_reservation_settings():
     """Reservation Settings Admin Page."""
-    st.title("⚙️ 예약 설정 관리")
+    st.title("Reservation Settings")
 
-    # 현재 활성화된 세션
+    # Get active session
     session = db.get_active_session()
     if not session:
-        st.warning("📋 활성화된 세션이 없습니다.")
+        st.warning("No active session found.")
 
-        # 새 세션 생성 옵션
-        with st.expander("새 세션 생성"):
-            st.info("회차별 세션 관리 페이지에서 새 세션을 생성하세요.")
+        with st.expander("Create New Session"):
+            st.info(
+                "Please create a new session from the Event Sessions Management page."
+            )
 
         return
 
     session_id = session.get("id", "")
     session_name = session.get(
-        "session_name", f"제 {session.get('session_number', 1)}회"
+        "session_name", f"Session {session.get('session_number', 1)}"
     )
 
-    # 예약 상태 관리
+    # Reservation status management
     col1, col2 = st.columns([1, 2])
 
     with col1:
-        st.subheader("📊 예약 상태")
+        st.subheader("Reservation Status")
         is_open = session.get("is_reservation_open", False)
 
         if is_open:
-            st.success("🔓 **예약 오픈됨**")
-            if st.button("🔒 예약 마감하기", type="primary"):
+            st.success("Reservations are OPEN")
+            if st.button("Close Reservations", type="primary"):
                 db.update_session_active(session_id, False)
                 st.rerun()
         else:
-            st.error("🔒 **예약 마감됨**")
-            if st.button("🔓 예약 오픈하기", type="primary"):
+            st.error("Reservations are CLOSED")
+            if st.button("Open Reservations", type="primary"):
                 db.update_session_active(session_id, True)
                 st.rerun()
 
     with col2:
-        st.subheader("⏰ 예약 시간 설정")
+        st.subheader("Reservation Time Settings")
 
-        # 시간 입력
+        # Time input
         col_time1, col_time2 = st.columns(2)
         with col_time1:
             open_time = st.text_input(
-                "예약 오픈 시간",
+                "Reservation Open Time",
                 value=session.get("reservation_open_time", "") or "",
                 placeholder="YYYY-MM-DD HH:MM",
-                help="예: 2026-02-15 12:00",
+                help="Example: 2026-02-15 12:00",
             )
         with col_time2:
             close_time = st.text_input(
-                "예약 마감 시간",
+                "Reservation Close Time",
                 value=session.get("reservation_close_time", "") or "",
                 placeholder="YYYY-MM-DD HH:MM",
-                help="예: 2026-02-20 23:59",
+                help="Example: 2026-02-20 23:59",
             )
 
-        if st.button("💾 시간 저장"):
+        if st.button("Save Times"):
             try:
                 db.update(
                     session_id,
@@ -76,90 +77,92 @@ def show_reservation_settings():
                     },
                     {"id": f"eq.{session_id}"},
                 )
-                st.success("✅ 저장되었습니다!")
+                st.success("Times saved successfully!")
                 st.rerun()
             except Exception as e:
-                st.error(f"저장 실패: {e}")
+                st.error(f"Failed to save: {e}")
 
     st.markdown("---")
 
-    # 현재 예약 현황
-    st.subheader("📈 현재 예약 현황")
+    # Current reservation status
+    st.subheader("Current Reservation Status")
 
-    # 통계 계산
+    # Calculate statistics
     approved_count = db.get_approved_reservation_count(session_id)
     pending_count = 0  # No status field in simplified schema
     waitlisted_count = 0  # Waitlist not available
     rejected_count = 0  # No status field in simplified schema
     max_participants = session.get("max_participants", 180)
 
-    # 통계 카드
+    # Statistics cards
     col_stat1, col_stat2, col_stat3, col_stat4, col_stat5 = st.columns(5)
     col_stat1.metric(
-        "승인됨",
+        "Approved",
         approved_count,
-        f"{max_participants - approved_count}남음",
+        f"{max_participants - approved_count} remaining",
         delta_color="normal",
     )
-    col_stat2.metric("대기 중", pending_count)
-    col_stat3.metric("대기자", waitlisted_count)
-    col_stat4.metric("거절됨", rejected_count)
-    col_stat5.metric("정원", f"{approved_count}/{max_participants}")
+    col_stat2.metric("Pending", pending_count)
+    col_stat3.metric("Waitlist", waitlisted_count)
+    col_stat4.metric("Rejected", rejected_count)
+    col_stat5.metric("Capacity", f"{approved_count}/{max_participants}")
 
-    # 진행률 바
+    # Progress bar
     progress = min(approved_count / max_participants, 1.0)
     st.progress(progress)
 
-    # 상태에 따른 색상 변화
+    # Status messages
     if approved_count >= max_participants:
-        st.error("🚨 정원이 초과되었습니다! 추가 예약을 받으면 대기로 처리됩니다.")
+        st.error(
+            "Capacity exceeded! Additional reservations will be added to waitlist."
+        )
     elif approved_count >= max_participants * 0.9:
-        st.warning("⚠️ 정원이 거의 마감되었습니다.")
+        st.warning("Almost at capacity!")
     else:
-        st.success("🎉 예약이 원활히 진행되고 있습니다.")
+        st.success("Reservations are proceeding smoothly.")
 
-    # 예약 가능 여부 UI 제어 (외부인에게 보여줄 내용)
+    # Public view settings
     st.markdown("---")
-    st.subheader("🌐 외부인 예약 현황 UI")
+    st.subheader("Public Status Page Settings")
 
-    # 외부인 예약 가능 여부 설정
+    # Enable public view
     enable_public_view = st.checkbox(
-        "외부인에게 예약 현황 보여주기",
+        "Show reservation status to public",
         value=session.get("enable_public_view", False),
-        help="체크하면 비로그인 사용자도 예약 현황을 확인할 수 있습니다.",
+        help="When checked, non-logged-in users can view the reservation status.",
     )
 
-    if st.button("💾 설정 저장"):
+    if st.button("Save Settings"):
         try:
             db.update(
                 session_id,
                 {"enable_public_view": enable_public_view},
                 {"id": f"eq.{session_id}"},
             )
-            st.success("✅ 설정 저장됨!")
+            st.success("Settings saved!")
         except Exception as e:
-            st.error(f"설정 저장 실패: {e}")
+            st.error(f"Failed to save settings: {e}")
 
-    # 예약 현황 페이지 링크
+    # Public status page link
     if enable_public_view:
         st.info(
-            "📎 예약 현황 페이지: `views/public_status.py`를 통해 외부에 공개됩니다."
+            "Public status page is enabled. Users can access it via the public status URL."
         )
 
 
 def show_reservation_list():
     """Show reservation list with filters."""
-    st.title("📋 예약자 명단 관리")
+    st.title("Reservation List Management")
 
-    # 필터
+    # Filter
     col1, col2 = st.columns(2)
     with col1:
-        search = st.text_input("사령관번호/닉네임 검색")
+        search = st.text_input("Search by Commander ID or Nickname")
 
-    # 예약 목록 가져오기
+    # Get reservations
     reservations = db.list_reservations()
 
-    # 검색 적용
+    # Apply search
     if search:
         reservations = [
             r
@@ -168,16 +171,16 @@ def show_reservation_list():
             or search in str(r.get("nickname", ""))
         ]
 
-    # 결과 표시
-    st.write(f"**총 {len(reservations)}명**")
+    # Display results
+    st.write(f"**Total: {len(reservations)}**")
 
     if reservations:
-        # 테이블 형태로 표시
+        # Table display
         import pandas as pd
 
         df = pd.DataFrame(reservations)
 
-        # 표시할 컬럼 선택
+        # Select columns to display
         display_cols = [
             "nickname",
             "commander_number",
@@ -187,10 +190,10 @@ def show_reservation_list():
         ]
         st.dataframe(df[display_cols], use_container_width=True)
 
-        # 상세 정보 및 작업
-        with st.expander("상세 작업"):
+        # Detail actions
+        with st.expander("Actions"):
             selected = st.selectbox(
-                "예약 선택",
+                "Select Reservation",
                 [f"{r['nickname']} ({r['commander_number']})" for r in reservations],
             )
             if selected:
@@ -199,18 +202,18 @@ def show_reservation_list():
                 ].index(selected)
                 res = reservations[idx]
 
-                st.write("### 선택한 예약 정보")
+                st.write("### Selected Reservation Details")
                 st.json(res)
 
-                # 삭제 버튼
-                if st.button("❌ 예약 취소/삭제"):
+                # Delete button
+                if st.button("Cancel/Delete Reservation"):
                     db.cancel_reservation(res["id"])
-                    st.success("예약이 취소되었습니다.")
+                    st.success("Reservation cancelled.")
                     st.rerun()
 
 
 if __name__ == "__main__":
-    tab1, tab2 = st.tabs(["⚙️ 예약 설정", "📋 예약자 명단"])
+    tab1, tab2 = st.tabs(["Settings", "Reservation List"])
     with tab1:
         show_reservation_settings()
     with tab2:

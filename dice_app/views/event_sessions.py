@@ -83,19 +83,49 @@ def show():
                     with col1:
                         st.markdown("### Actions")
 
+                        # Initialize confirmation state
+                        if f"confirm_{session['id']}" not in st.session_state:
+                            st.session_state[f"confirm_{session['id']}"] = False
+
                         if session["is_active"]:
                             if st.button(
                                 "Deactivate",
                                 key=f"deactivate_{session['id']}",
                                 use_container_width=True,
                             ):
-                                if st.button(
-                                    f"Deactivate Session {session['session_number']}?",
-                                    key=f"confirm_deactivate_{session['id']}",
-                                ):
-                                    update_session_active(session["id"], False)
-                                    st.success("Session deactivated.")
-                                    st.rerun()
+                                st.session_state[f"confirm_{session['id']}"] = (
+                                    "deactivate"
+                                )
+                                st.rerun()
+
+                            if (
+                                st.session_state.get(f"confirm_{session['id']}")
+                                == "deactivate"
+                            ):
+                                st.warning(
+                                    f"Deactivate Session {session['session_number']}?"
+                                )
+                                col_confirm1, col_confirm2 = st.columns(2)
+                                with col_confirm1:
+                                    if st.button(
+                                        "Yes, Deactivate",
+                                        key=f"yes_deactivate_{session['id']}",
+                                    ):
+                                        update_session_active(session["id"], False)
+                                        st.session_state[f"confirm_{session['id']}"] = (
+                                            False
+                                        )
+                                        st.success("Session deactivated.")
+                                        st.rerun()
+                                with col_confirm2:
+                                    if st.button(
+                                        "No, Cancel",
+                                        key=f"no_deactivate_{session['id']}",
+                                    ):
+                                        st.session_state[f"confirm_{session['id']}"] = (
+                                            False
+                                        )
+                                        st.rerun()
                         else:
                             if st.button(
                                 "Activate",
@@ -122,13 +152,39 @@ def show():
                                     type="secondary",
                                     use_container_width=True,
                                 ):
-                                    if st.button(
-                                        f"Delete Session {session['session_number']}? This cannot be undone.",
-                                        key=f"confirm_delete_{session['id']}",
-                                    ):
-                                        delete_session(session["id"])
-                                        st.success("Session deleted.")
-                                        st.rerun()
+                                    st.session_state[f"confirm_{session['id']}"] = (
+                                        "delete"
+                                    )
+                                    st.rerun()
+
+                                if (
+                                    st.session_state.get(f"confirm_{session['id']}")
+                                    == "delete"
+                                ):
+                                    st.error(
+                                        f"Delete Session {session['session_number']}? This cannot be undone."
+                                    )
+                                    col_confirm1, col_confirm2 = st.columns(2)
+                                    with col_confirm1:
+                                        if st.button(
+                                            "Yes, Delete",
+                                            key=f"yes_delete_{session['id']}",
+                                        ):
+                                            delete_session(session["id"])
+                                            st.session_state[
+                                                f"confirm_{session['id']}"
+                                            ] = False
+                                            st.success("Session deleted.")
+                                            st.rerun()
+                                    with col_confirm2:
+                                        if st.button(
+                                            "No, Cancel",
+                                            key=f"no_delete_{session['id']}",
+                                        ):
+                                            st.session_state[
+                                                f"confirm_{session['id']}"
+                                            ] = False
+                                            st.rerun()
 
                     with col2:
                         st.markdown("### Reservations")

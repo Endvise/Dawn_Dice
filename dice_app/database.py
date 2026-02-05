@@ -35,12 +35,13 @@ def supabase_request(
     """Make a request to Supabase REST API."""
     url = config.get_supabase_url(table)
 
-    if method.upper() == "GET" and params:
+    # Apply params to URL for all methods that need filtering
+    if params:
         query_parts = []
         for key, value in params.items():
             query_parts.append(f"{key}={value}")
         url += "?" + "&".join(query_parts)
-        params = None
+        params = None  # Params moved to URL
 
     headers = config.get_headers()
 

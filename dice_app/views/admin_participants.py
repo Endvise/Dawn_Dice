@@ -11,6 +11,7 @@ import pandas as pd
 import openpyxl
 import secrets
 import string
+import re
 from io import BytesIO
 import database as db
 import auth
@@ -328,19 +329,19 @@ def show():
 
     # ========== Tab 3: Import Excel ==========
     with tab3:
-        st.markdown("### Import Excel with Auto ID/Password Generation")
+        st.markdown("### Import Excel - Bulk Registration")
 
         st.markdown("""
-        Upload Excel file to:
-        1. Generate random passwords for new participants
-        2. Create user accounts
-        3. Add to participants list
+        **Excel Format:**
+        - **사령관 ID**: 10자리 숫자 (필수)
+        - **소속**: `#000 연맹이름` 형식 → 서버(#000) + 연맹이름 분리
+        - **닉네임**: 빈칸 (사용자가 나중에 직접 변경)
+        - **중복 제거**: 사령관 ID가 중복되면 1개만 남김
         """)
 
         # Session selection
-        session_options = ["Select Session..."] + sorted(
-            set([p.get("event_name") for p in participants if p.get("event_name")])
-        )
+        event_names = [p.get("event_name") for p in participants if p.get("event_name")]
+        session_options = ["Select Session..."] + sorted(set(event_names))
         if active_session:
             default_idx = (
                 session_options.index(active_session.get("session_name")) + 1
@@ -358,110 +359,103 @@ def show():
         uploaded_file = st.file_uploader(
             "Upload Excel File",
             type=["xlsx", "xls"],
-            help="Columns: Nickname, IGG ID (optional), Affiliation (optional), Alliance (optional)",
+            help="Required: Commander ID column (10 digits). Affiliation format: '#000 alliance_name'",
         )
 
         if uploaded_file:
             try:
                 df = pd.read_excel(BytesIO(uploaded_file.read()), sheet_name=0)
 
-                # Auto-detect columns
-                nickname_col = None
-                igg_col = None
-                affiliation_col = None
-                alliance_col = None
-
-                for col in df.columns:
-                    col_lower = str(col).lower()
-                    if "nickname" in col_lower or "name" in col_lower:
-                        nickname_col = col
-                    elif (
-                        "igg" in col_lower
-                        or "commander" in col_lower
-                        or "id" in col_lower
-                    ):
-                        igg_col = col
-                    elif "affiliation" in col_lower or "guild" in col_lower:
-                        affiliation_col = col
-                    elif "alliance" in col_lower:
-                        alliance_col = col
-
                 st.success(f"Loaded: {uploaded_file.name} - {len(df)} rows")
 
-                # Show column mapping
+                # Column selection
                 st.markdown("### Column Mapping")
                 col1, col2 = st.columns(2)
+
+                all_cols = list(df.columns)
+
                 with col1:
-                    nickname_col = st.selectbox(
-                        "Nickname Column",
-                        list(df.columns),
-                        index=list(df.columns).index(nickname_col)
-                        if nickname_col
-                        else 0,
+                    commander_id_col = st.selectbox(
+                        "Commander ID Column (10 digits)",
+                        all_cols,
+                        index=0,
+                        help="10자리 사령관번호가 있는 컬럼",
                     )
+
                 with col2:
-                    igg_col = st.selectbox(
-                        "IGG ID Column (Optional)",
-                        ["None"] + list(df.columns),
-                        index=list(df.columns).index(igg_col) + 1 if igg_col else 0,
-                    )
-
-                col3, col4 = st.columns(2)
-                with col3:
                     affiliation_col = st.selectbox(
-                        "Affiliation Column (Optional)",
-                        ["None"] + list(df.columns),
-                        index=list(df.columns).index(affiliation_col) + 1
-                        if affiliation_col
-                        else 0,
-                    )
-                with col4:
-                    alliance_col = st.selectbox(
-                        "Alliance Column (Optional)",
-                        ["None"] + list(df.columns),
-                        index=list(df.columns).index(alliance_col) + 1
-                        if alliance_col
-                        else 0,
+                        "Affiliation Column",
+                        ["None"] + all_cols,
+                        index=1 if len(all_cols) > 1 else 0,
+                        help="'#000 연맹이름' 형식의 소속 컬럼",
                     )
 
-                # Preview
-                st.markdown("### Preview")
-                preview_df = df[
-                    [nickname_col] + ([igg_col] if igg_col != "None" else [])
-                ].head(10)
-                st.dataframe(preview_df, use_container_width=True)
+                # Process and show preview
+                st.markdown("### Preview (Processed)")
 
-                st.markdown("---")
+                # Process data
+                processed_data = []
+                seen_commander_ids = set()
 
-                # Import options
-                col_opt1, col_opt2 = st.columns(2)
+                for idx, row in df.iterrows():
+                    # Extract commander ID (10 digits)
+                    raw_id = str(row.get(commander_id_col, "")).strip()
+                    # Find 10-digit number
+                    import re
 
-                with col_opt1:
+                    match = re.search(r"\d{10}", raw_id)
+                    if match:
+                        commander_id = match.group()
+                    else:
+                        continue  # Skip if no 10-digit ID
+
+                    # Remove duplicates
+                    if commander_id in seen_commander_ids:
+                        continue
+                    seen_commander_ids.add(commander_id)
+
+                    # Parse affiliation: "#000 alliance_name"
+                    server = ""
+                    alliance = ""
+                    if affiliation_col != "None" and pd.notna(row.get(affiliation_col)):
+                        raw_aff = str(row[affiliation_col]).strip()
+                        # Split by space, first part is server (#000), rest is alliance
+                        parts = raw_aff.split(" ", 1)
+                        server = parts[0] if parts else ""
+                        alliance = parts[1] if len(parts) > 1 else ""
+
+                    processed_data.append(
+                        {
+                            "commander_id": commander_id,
+                            "nickname": "",  # Empty - user will set later
+                            "server": server,
+                            "alliance": alliance,
+                        }
+                    )
+
+                if not processed_data:
+                    st.warning("No valid commander IDs found (10 digits required).")
+                else:
+                    preview_df = pd.DataFrame(processed_data)
+                    st.dataframe(preview_df.head(20), use_container_width=True)
                     st.info(
-                        f"**Import to Session**: {import_session if import_session != 'Select Session...' else 'Not selected'}"
+                        f"**Total valid entries**: {len(processed_data)} (duplicates removed)"
                     )
 
-                with col_opt2:
-                    auto_generate_igg = st.checkbox(
-                        "Auto-generate IGG ID if missing", value=True
-                    )
+                    st.markdown("---")
 
-                # Generate credentials preview
-                if st.checkbox("Preview Generated Credentials", value=False):
-                    preview_creds = []
-                    for idx, row in df.head(5).iterrows():
-                        nickname = str(row[nickname_col]).strip()
-                        password = generate_password()
-                        preview_creds.append(
-                            {
-                                "Nickname": nickname,
-                                "Password": password,
-                                "IGG ID": row.get(igg_col, "N/A")
-                                if igg_col != "None"
-                                else "(Auto-generated)",
-                            }
+                    # Import options
+                    col_opt1, col_opt2 = st.columns(2)
+
+                    with col_opt1:
+                        st.info(
+                            f"**Session**: {import_session if import_session != 'Select Session...' else 'Not selected'}"
                         )
-                    st.dataframe(pd.DataFrame(preview_creds))
+
+                    with col_opt2:
+                        st.info(
+                            f"**Duplicate IDs Removed**: {len(df) - len(processed_data)}"
+                        )
 
                 # Import button
                 if st.button(
@@ -471,50 +465,32 @@ def show():
                 ):
                     if import_session == "Select Session...":
                         st.error("Please select a session.")
+                    elif not processed_data:
+                        st.error("No valid data to import.")
                     else:
                         with st.spinner("Importing..."):
                             success_count = 0
                             password_report = []
 
-                            for idx, row in df.iterrows():
+                            for data in processed_data:
                                 try:
-                                    nickname = str(row[nickname_col]).strip()
-                                    if not nickname or nickname == "nan":
-                                        continue
-
-                                    igg_id = (
-                                        str(row[igg_col]).strip()
-                                        if igg_col != "None"
-                                        and pd.notna(row.get(igg_col))
-                                        else None
-                                    )
-                                    affiliation = (
-                                        str(row[affiliation_col]).strip()
-                                        if affiliation_col != "None"
-                                        and pd.notna(row.get(affiliation_col))
-                                        else None
-                                    )
-                                    alliance = (
-                                        str(row[alliance_col]).strip()
-                                        if alliance_col != "None"
-                                        and pd.notna(row.get(alliance_col))
-                                        else None
-                                    )
-
-                                    # Auto-generate IGG ID if needed
-                                    if not igg_id or igg_id == "nan" or igg_id == "":
-                                        igg_id = f"DG{100000 + idx:06d}"
+                                    commander_id = data["commander_id"]
+                                    server = data["server"]
+                                    alliance = data["alliance"]
 
                                     # Generate password
                                     password = generate_password()
+                                    password_hash = db.hash_password(password)
 
                                     # Check if user exists
                                     existing_user = db.get_user_by_commander_number(
-                                        igg_id
+                                        commander_id
                                     )
 
                                     if existing_user:
                                         user_id = existing_user["id"]
+                                        action = "existing"
+                                        # Store plaintext password if not exists
                                         if not existing_user.get("plaintext_password"):
                                             try:
                                                 db.update(
@@ -524,16 +500,15 @@ def show():
                                                 )
                                             except:
                                                 pass
-                                        action = "existing"
                                     else:
-                                        password_hash = db.hash_password(password)
+                                        # Create new user with empty nickname
                                         user_data = {
-                                            "commander_number": igg_id,
-                                            "nickname": nickname,
+                                            "commander_number": commander_id,
+                                            "nickname": "",  # Empty - user will set later
                                             "password_hash": password_hash,
                                             "plaintext_password": password,
-                                            "server": affiliation or "",
-                                            "alliance": alliance or "",
+                                            "server": server,
+                                            "alliance": alliance,
                                             "is_active": True,
                                         }
                                         user_id = db.insert("users", user_data)
@@ -541,9 +516,9 @@ def show():
 
                                     # Add to participants
                                     participant_data = {
-                                        "nickname": nickname,
-                                        "igg_id": igg_id,
-                                        "affiliation": affiliation,
+                                        "nickname": "",  # Empty - user will set later
+                                        "igg_id": commander_id,
+                                        "affiliation": server,
                                         "alliance": alliance,
                                         "event_name": import_session,
                                         "completed": 0,
@@ -556,15 +531,18 @@ def show():
                                     success_count += 1
                                     password_report.append(
                                         {
-                                            "Nickname": nickname,
-                                            "IGG ID": igg_id,
+                                            "Commander ID": commander_id,
+                                            "Server": server,
+                                            "Alliance": alliance,
                                             "Password": password,
                                             "Status": action.capitalize(),
                                         }
                                     )
 
                                 except Exception as e:
-                                    st.warning(f"Row {idx}: {e}")
+                                    st.warning(
+                                        f"Error importing {data.get('commander_id', 'unknown')}: {e}"
+                                    )
                                     continue
 
                             st.success(f"Imported {success_count} participants!")

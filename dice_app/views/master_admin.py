@@ -17,7 +17,8 @@ def show():
     st.title("Admin Account Management")
     st.markdown("---")
 
-    admins = db.list_users(role="admin")
+    # admins 테이블에서 관리자 목록 조회
+    admins = db.list_admins(role="admin")
 
     total_admins = len(admins)
     active_admins = len([a for a in admins if a.get("is_active")])

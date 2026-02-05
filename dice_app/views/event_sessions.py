@@ -6,8 +6,8 @@ Event Sessions Management Page
 import streamlit as st
 import database as db
 import auth
-from database import execute_query
 from datetime import datetime, date, timedelta
+from typing import Optional
 
 
 def show():
@@ -420,106 +420,47 @@ def show():
 
 def get_all_sessions():
     """Return all sessions."""
-    results = execute_query(
-        """
-        SELECT s.*, u.nickname as creator_name
-        FROM event_sessions s
-        LEFT JOIN users u ON s.created_by = u.id
-        ORDER BY s.session_number DESC
-        """,
-        fetch="all",
-    )
-    return [dict(row) for row in results]
+    return db.get_all_sessions()
 
 
 def get_active_session():
     """Return active session."""
-    result = execute_query(
-        """
-        SELECT s.*, u.nickname as creator_name
-        FROM event_sessions s
-        LEFT JOIN users u ON s.created_by = u.id
-        WHERE s.is_active = 1
-        LIMIT 1
-        """,
-        fetch="one",
-    )
-    return dict(result) if result else None
+    return db.get_active_session()
 
 
 def get_next_session_number():
     """Return next session number."""
-    result = execute_query(
-        "SELECT MAX(session_number) as max_number FROM event_sessions", fetch="one"
-    )
-    return (result.get("max_number", 0) if result else 0) + 1
+    return db.get_next_session_number()
 
 
-def get_participant_count(session_id: int) -> int:
+def get_participant_count(session_id: str) -> int:
     """Return participant count for session."""
-    session = execute_query(
-        "SELECT session_name FROM event_sessions WHERE id = ?",
-        (session_id,),
-        fetch="one",
-    )
-
-    if not session:
-        return 0
-
-    event_name = session["session_name"]
-    result = execute_query(
-        "SELECT COUNT(*) as count FROM participants WHERE event_name = ? AND completed = 1",
-        (event_name,),
-        fetch="one",
-    )
-    return result.get("count", 0) if result else 0
+    return db.get_participant_count(session_id)
 
 
-def get_approved_reservation_count(session_id: int) -> int:
+def get_approved_reservation_count(session_id: str) -> int:
     """Return approved reservation count for session."""
-    result = execute_query(
-        "SELECT COUNT(*) as count FROM reservations WHERE status = 'approved'",
-        fetch="one",
-    )
-    return result.get("count", 0) if result else 0
+    return db.get_approved_reservation_count(session_id)
 
 
-def get_session_reservations(session_id: int):
+def get_session_reservations(session_id: str):
     """Return reservations for session."""
-    return db.list_reservations()
+    return db.get_session_reservations(session_id)
 
 
-def get_session_participants(session_id: int):
+def get_session_participants(session_id: str):
     """Return participants for session."""
-    session = execute_query(
-        "SELECT session_name FROM event_sessions WHERE id = ?",
-        (session_id,),
-        fetch="one",
-    )
-
-    if not session:
-        return []
-
-    event_name = session["session_name"]
-    results = execute_query(
-        "SELECT * FROM participants WHERE event_name = ? ORDER BY number",
-        (event_name,),
-        fetch="all",
-    )
-    return [dict(row) for row in results]
+    return db.get_session_participants(session_id)
 
 
-def update_session_active(session_id: int, is_active: bool):
+def update_session_active(session_id: str, is_active: bool):
     """Update session active status."""
-    execute_query(
-        "UPDATE event_sessions SET is_active = ? WHERE id = ?",
-        (1 if is_active else 0, session_id),
-    )
+    db.update_session_active(session_id, is_active)
 
 
-def delete_session(session_id: int):
+def delete_session(session_id: str):
     """Delete session."""
-    execute_query("DELETE FROM event_sessions WHERE id = ?", (session_id,))
+    db.delete_session(session_id)
 
 
 def create_session(
@@ -527,25 +468,17 @@ def create_session(
     session_name: str,
     session_date: date,
     max_participants: int,
-    created_by: int,
-    reservation_open_time: str = None,
-    reservation_close_time: str = None,
+    created_by: str,
+    reservation_open_time: Optional[str] = None,
+    reservation_close_time: Optional[str] = None,
 ):
     """Create new session."""
-    execute_query("UPDATE event_sessions SET is_active = 0")
-
-    execute_query(
-        """
-        INSERT INTO event_sessions (session_number, session_name, session_date, max_participants, reservation_open_time, reservation_close_time, created_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """,
-        (
-            session_number,
-            session_name,
-            session_date,
-            max_participants,
-            reservation_open_time,
-            reservation_close_time,
-            created_by,
-        ),
+    db.create_session(
+        session_number=session_number,
+        session_name=session_name,
+        session_date=session_date,
+        max_participants=max_participants,
+        created_by=created_by,
+        reservation_open_time=reservation_open_time,
+        reservation_close_time=reservation_close_time,
     )

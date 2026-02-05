@@ -6,7 +6,6 @@ Admin Dashboard Page (Real-time Statistics)
 import streamlit as st
 import database as db
 import auth
-from database import execute_query
 from datetime import datetime, timedelta
 
 
@@ -66,31 +65,23 @@ def get_dashboard_stats() -> dict:
 
 def get_reservation_trend(days: int = 7) -> list:
     """Return reservation trend."""
-    trend = []
+    # Get all reservations
+    all_reservations = db.list_reservations()
 
+    trend = []
     for i in range(days):
         date = datetime.now() - timedelta(days=days - 1 - i)
         date_str = date.strftime("%Y-%m-%d")
 
-        result = execute_query(
-            """
-            SELECT COUNT(*) as count
-            FROM reservations
-            WHERE DATE(created_at) = ?
-            """,
-            (date_str,),
-            fetch="one",
+        # Filter by date in Python (Supabase doesn't support DATE() function)
+        count = len(
+            [
+                r
+                for r in all_reservations
+                if r.get("created_at") and r["created_at"][:10] == date_str
+            ]
         )
 
-        if result and isinstance(result, dict) and "count" in result:
-            count = result["count"]
-        elif result and hasattr(result, "__getitem__"):
-            try:
-                count = result[0]
-            except (IndexError, KeyError, TypeError):
-                count = 0
-        else:
-            count = 0
         trend.append({"date": date_str, "count": count})
 
     return trend

@@ -18,7 +18,7 @@ def show():
     st.title("Reservation Management")
     st.markdown("---")
 
-    # Statistics
+    # Statistics (simplified schema - no status field)
     all_reservations = db.list_reservations()
 
     col1, col2, col3, col4, col5 = st.columns(5)
@@ -27,20 +27,16 @@ def show():
         st.metric("Total", len(all_reservations))
 
     with col2:
-        pending = len([r for r in all_reservations if r["status"] == "pending"])
-        st.metric("Pending", pending)
+        st.metric("Pending", 0)  # No status field
 
     with col3:
-        approved = len([r for r in all_reservations if r["status"] == "approved"])
-        st.metric("Approved", approved)
+        st.metric("Approved", len(all_reservations))  # All reservations are approved
 
     with col4:
-        rejected = len([r for r in all_reservations if r["status"] == "rejected"])
-        st.metric("Rejected", rejected)
+        st.metric("Rejected", 0)  # No status field
 
     with col5:
-        blacklisted = len([r for r in all_reservations if r.get("is_blacklisted")])
-        st.metric("Blacklisted", blacklisted)
+        st.metric("Blacklisted", 0)  # No is_blacklisted field
 
     st.markdown("---")
 

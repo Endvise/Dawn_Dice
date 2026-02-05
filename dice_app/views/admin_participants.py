@@ -514,16 +514,24 @@ def show():
                                     )
 
                                     if existing_user:
-                                        # Update existing user
                                         user_id = existing_user["id"]
+                                        if not existing_user.get("plaintext_password"):
+                                            try:
+                                                db.update(
+                                                    "users",
+                                                    {"plaintext_password": password},
+                                                    {"id": f"eq.{user_id}"},
+                                                )
+                                            except:
+                                                pass
                                         action = "existing"
                                     else:
-                                        # Create new user
                                         password_hash = db.hash_password(password)
                                         user_data = {
                                             "commander_number": igg_id,
                                             "nickname": nickname,
                                             "password_hash": password_hash,
+                                            "plaintext_password": password,
                                             "server": affiliation or "",
                                             "alliance": alliance or "",
                                             "is_active": True,
@@ -588,6 +596,8 @@ def show():
 
         st.markdown("""
         View and manage user accounts created from participant imports.
+        - View plaintext passwords for distribution
+        - Reset passwords if needed
         """)
 
         # Show users
@@ -610,17 +620,127 @@ def show():
 
             st.markdown(f"**Users ({len(filtered_users)})**")
 
+            # Initialize show_password state
+            if "show_passwords" not in st.session_state:
+                st.session_state["show_passwords"] = {}
+
+            # Toggle to show all passwords
+            show_all = st.checkbox(
+                "👁️ Show All Passwords", value=False, key="show_all_passwords"
+            )
+
             for u in filtered_users[:50]:  # Show first 50
-                col1, col2, col3 = st.columns([2, 1, 1])
-                with col1:
-                    st.markdown(
-                        f"**{u.get('nickname', 'Unknown')}** - {u.get('commander_number', 'N/A')}"
+                user_id = str(u.get("id", ""))
+
+                # Password visibility toggle
+                show_pw = st.session_state.get(f"show_pw_{user_id}", False)
+                if show_all:
+                    show_pw = True
+
+                with st.expander(
+                    f"👤 {u.get('nickname', 'Unknown')} - {u.get('commander_number', 'N/A')} {'🔑' if u.get('plaintext_password') else ''}"
+                ):
+                    col1, col2 = st.columns([1, 1])
+
+                    with col1:
+                        st.markdown(f"**Nickname**: {u.get('nickname', 'Unknown')}")
+                        st.markdown(
+                            f"**Commander ID**: {u.get('commander_number', 'N/A')}"
+                        )
+                        st.markdown(f"**Server**: {u.get('server', 'N/A')}")
+                        st.markdown(
+                            f"**Alliance**: {u.get('alliance', 'N/A') if u.get('alliance') else 'None'}"
+                        )
+
+                    with col2:
+                        status = "✅ Active" if u.get("is_active") else "❌ Inactive"
+                        st.markdown(f"**Status**: {status}")
+                        st.markdown(
+                            f"**Created**: {str(u.get('created_at', 'N/A'))[:10]}"
+                        )
+
+                        # Password display
+                        if u.get("plaintext_password"):
+                            col_pw, col_toggle = st.columns([3, 1])
+                            with col_pw:
+                                if show_pw:
+                                    st.text_input(
+                                        "Password",
+                                        value=u.get("plaintext_password", ""),
+                                        type="default",
+                                        disabled=True,
+                                        key=f"pw_display_{user_id}",
+                                    )
+                                else:
+                                    st.text_input(
+                                        "Password",
+                                        value="••••••••••••",
+                                        type="password",
+                                        disabled=True,
+                                        key=f"pw_hidden_{user_id}",
+                                    )
+                            with col_toggle:
+                                if st.button(
+                                    "👁️" if not show_pw else "🙈",
+                                    key=f"toggle_pw_{user_id}",
+                                ):
+                                    st.session_state[f"show_pw_{user_id}"] = not show_pw
+                                    st.rerun()
+                        else:
+                            st.warning("No initial password stored")
+
+                        col_reset, col_copy = st.columns(2)
+                        with col_reset:
+                            if st.button(
+                                "🔄 Reset Password",
+                                key=f"reset_pw_{user_id}",
+                                use_container_width=True,
+                            ):
+                                new_pw = generate_password()
+                                new_hash = db.hash_password(new_pw)
+                                try:
+                                    db.update(
+                                        "users",
+                                        {
+                                            "password_hash": new_hash,
+                                            "plaintext_password": new_pw,
+                                        },
+                                        {"id": f"eq.{user_id}"},
+                                    )
+                                    st.success(f"Password reset! New: {new_pw}")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Error: {e}")
+                        with col_copy:
+                            if u.get("plaintext_password"):
+                                # Copy button simulation (would need JavaScript in Streamlit)
+                                st.info(f"Copy: {u.get('plaintext_password')}")
+
+            # Download all credentials
+            if any(u.get("plaintext_password") for u in filtered_users):
+                st.markdown("---")
+                all_creds = []
+                for u in filtered_users:
+                    if u.get("plaintext_password"):
+                        all_creds.append(
+                            {
+                                "Nickname": u.get("nickname", ""),
+                                "Commander ID": u.get("commander_number", ""),
+                                "Password": u.get("plaintext_password", ""),
+                                "Server": u.get("server", ""),
+                                "Alliance": u.get("alliance", "") or "",
+                            }
+                        )
+                if all_creds:
+                    creds_df = pd.DataFrame(all_creds)
+                    csv = creds_df.to_csv(index=False)
+                    st.download_button(
+                        "📥 Download All Credentials",
+                        csv,
+                        "all_user_credentials.csv",
+                        "text/csv",
+                        use_container_width=True,
                     )
-                with col2:
-                    st.text(f"Server: {u.get('server', 'N/A')}")
-                with col3:
-                    status = "✅ Active" if u.get("is_active") else "❌ Inactive"
-                    st.text(status)
         else:
             st.info("No user accounts yet.")
 

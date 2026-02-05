@@ -1054,5 +1054,52 @@ else:
 ```bash
 # DELETE API 테스트
 Delete Status: 204
-Remaining Sessions: [] ✅
+Remaining Sessions: []
 ```
+
+---
+
+# 18. 홈 페이지 예약 상태 수정 (2026-02-05)
+
+## 18.1 문제
+
+- 세션이 활성화되지 않았는데도 홈 페이지에 "예약 접수 중" 표시
+- 세션이 없을 때 예약이 가능해야 하는 것으로 오해
+
+## 18.2 원인
+
+```python
+# 기존 코드 - 잘못된 로직
+else:
+    "is_reservation_open": True,  # No session = always open ❌
+    "is_reservation_closed": False,
+```
+
+## 18.3 수정 내용
+
+### 예약 상태 변경
+```python
+# 수정 후 - 세션이 없으면 예약 불가
+else:
+    "is_reservation_open": False,  # No session = reservations not open ✅
+    "is_reservation_closed": True,
+```
+
+### 홈 페이지 표시
+```python
+# 세션이 없을 때
+st.warning("## 📢 No Active Session")
+st.info("Reservations are not available at this time.")
+st.markdown("Please wait for an administrator to create and activate a session.")
+```
+
+## 18.4 예약 상태표시
+
+| 상태 | 세션활성화 | 예약가능 | 표시메시지 |
+|------|-----------|---------|----------|
+| 예약가능 | ✅ | ✅ | ✅ Reservations Open |
+| 마감임박 | ✅ | ✅ (시간차) | ⏰ Reservations Opening Soon |
+| 마감 | ✅ | ❌ | ⛔ Reservations Closed |
+| 대기명단 | ✅ | ✅ (가득참) | ⏳ Waitlist Only |
+| **세션없음** | ❌ | ❌ | **📢 No Active Session** |
+

@@ -688,3 +688,76 @@ with col1:
 - 새 비밀번호 최소 8자
 - bcrypt 해싱 후 저장
 - 비밀번호 변경 후 자동 로그아웃
+
+---
+
+# 13. 이벤트 세션 활성화 버그 수정 (2026-02-05)
+
+## 13.1 문제 증상
+- 세션 생성은 성공하지만 활성화가 적용되지 않음
+- 활성화/비활성화 버튼 클릭 시 반응 없음
+- 이벤트 세션 관리 페이지에서 "No active session" 메시지 계속 표시
+- 메인 홈에 예약 상태가 적용되지 않음
+
+## 13.2 원인 분석
+
+### 문제 1: create_session()에서 is_active 미설정
+```python
+# 기존 코드 - is_active가 새 세션에 설정되지 않음
+insert(
+    "event_sessions",
+    {
+        "session_number": session_number,
+        "session_name": session_name,
+        ...
+        # is_active 누락!
+    },
+)
+```
+
+### 문제 2: 불리언 값 형식 불일치
+- 스키마: `is_active boolean NOT NULL DEFAULT false`
+- 코드: `"is_active": 0` / `"is_active": 1` (정수형)
+- PostgREST가 정수형 boolean을 제대로 처리하지 못함
+
+### 문제 3: get_active_session() 쿼리 형식 오류
+```python
+# 기존 코드
+return fetch_one("event_sessions", {"is_active": "eq.1"})
+# 올바른 형식
+return fetch_one("event_sessions", {"is_active": "eq.true"})
+```
+
+## 13.3 수정 내용
+
+### database.py 수정
+```python
+# create_session() - 새 세션에 is_active: True 추가
+insert(
+    "event_sessions",
+    {
+        ...
+        "is_active": True,  # 활성 상태로 생성
+    },
+)
+
+# 기존 세션 비활성화 - 불리언 형식 사용
+update("event_sessions", {"is_active": False}, {"is_active": "eq.True"})
+
+# update_session_active() - 불리언 값 직접 전달
+return update(
+    "event_sessions",
+    {"is_active": is_active},  # Python bool을 JSON bool로 변환
+    {"id": f"eq.{session_id}"},
+)
+
+# get_active_session() - 쿼리 형식 수정
+return fetch_one("event_sessions", {"is_active": "eq.true"})
+```
+
+## 13.4 테스트 방법
+1. 기존 세션 삭제
+2. 새 세션 생성
+3. 상단에 "Current active session" 메시지 확인
+4. 메인 홈에서 예약 상태 변경 확인
+5. 활성화/비활성화 버튼 테스트

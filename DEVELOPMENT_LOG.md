@@ -761,3 +761,100 @@ return fetch_one("event_sessions", {"is_active": "eq.true"})
 3. 상단에 "Current active session" 메시지 확인
 4. 메인 홈에서 예약 상태 변경 확인
 5. 활성화/비활성화 버튼 테스트
+
+---
+
+# 14. Participants Management 개선 (2026-02-05)
+
+## 14.1 새로운 기능 개요
+
+### 탭 구조 변경
+| 이전 | 이후 |
+|------|------|
+| Participants List | **Participants List** |
+| Add Participant | **Add to Session** |
+| Import Excel/CSV | **Import Excel** + 자동 비밀번호 생성 |
+| (없음) | **Manage Users** - 생성된 계정 관리 |
+
+## 14.2 Excel 업로드 + ID/비밀번호 자동 생성
+
+### 기능 설명
+```python
+# Excel 업로드 시:
+1. 닉네임, IGG ID, 소속, 연맹 컬럼 매핑
+2. 새 참여자: 랜덤 비밀번호 생성 (12자리)
+3. 기존 사용자: 기존 계정 사용
+4. users 테이블에 계정 생성
+5. participants 테이블에 참여자 등록
+6. 생성된 Credentials CSV 다운로드
+```
+
+### 생성되는 Credentials
+| 필드 | 설명 |
+|------|------|
+| Nickname | Excel에서 가져옴 |
+| IGG ID | Excel 값 또는 `DGXXXXXX` 형식으로 자동 생성 |
+| Password | 12자리 랜덤 문자열 |
+| Status | "New" 또는 "Existing" |
+
+## 14.3 Add to Session 탭 - 일괄 작업
+
+### 기능 1: 세션에 참여자 추가
+- 현재 세션에 참여자 일괄 등록
+- 체크박스로 선택 가능
+- "Select All" 전체 선택
+
+### 기능 2: 예약 명단에 추가
+- 세션 참여자를 예약 명단에 추가
+- 관리자가 직접 승인된 것으로 처리
+- "Pre-registered by admin" 메모 포함
+
+### 상태 구분
+| 상태 | 설명 |
+|------|------|
+| 🎯 This Session | 현재 세션에 등록됨 |
+| ⏳ Pending | 세션에 미등록 |
+| ✅ Completed | 완료됨 |
+
+## 14.4 Manage Users 탭
+
+- Excel 업로드로 생성된 사용자 계정 조회
+- 검색 기능
+- 활성화/비활성 상태 확인
+
+## 14.5 사용 워크플로우
+
+### 워크플로우 1: 새 참여자 등록
+```
+1. Excel 파일 준비 (닉네임, 소속, 연맹)
+2. Participants Management → Import Excel
+3. 파일 업로드 및 컬럼 매핑
+4. 세션 선택
+5. Import 클릭
+6. 생성된 Credentials CSV 다운로드
+7. 참여자에게 ID/비밀번호 배포
+```
+
+### 워크플로우 2: 기존 참여자를 이번 세션에 등록
+```
+1. Participants Management → Add to Session
+2. 세션에 미등록 참여자 목록 확인
+3. 체크박스로 선택
+4. "Add Selected to Session" 클릭
+5. 예약 명단에 추가하려면 하단에서 선택 후 "Add Selected to Reservations"
+```
+
+## 14.6 상태 표시
+
+### Participants List에서
+| 배지 | 의미 |
+|------|------|
+| 🎯 This Session | 현재 활성화된 세션에 등록됨 |
+| ⏳ Pending | 세션에 미등록 |
+| ✅ Completed | 완료됨 |
+
+### 예약 명단에서
+| 상태 | 의미 |
+|------|------|
+| Pre-registered | 관리자가 미리 등록 |
+| Reservation | 사용자가 직접 신청

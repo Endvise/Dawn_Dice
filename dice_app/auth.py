@@ -137,8 +137,15 @@ def get_current_user() -> Optional[Dict[str, Any]]:
         return None
 
     user_id = st.session_state.get(SESSION_KEYS["user_id"])
+    role = st.session_state.get(SESSION_KEYS["role"])
+
     if user_id:
-        return db.get_user_by_id(user_id)
+        # admin/master는 admins 테이블에서 조회
+        if role in ["master", "admin"]:
+            return db.get_admin_by_id(user_id)
+        # 일반 사용자는 users 테이블에서 조회
+        else:
+            return db.get_user_by_id(user_id)
     return None
 
 

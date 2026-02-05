@@ -11,7 +11,8 @@
 | v05 | 2026-02-04 | Sisyphus | Supabase 스키마 확인 (users/admins/reservations/blacklist/audit_logs) |
 | v06 | 2026-02-04 | Sisyphus | participants/announcements 테이블 생성 |
 | v07 | 2026-02-04 | Sisyphus | **스키마 일치 작업 완료** - users/admins/reservations/blacklist/announcements 테이블에 맞게 코드 수정 |
-| v06 | 2026-02-04 | Sisyphus | participants/announcements 테이블 생성 |
+| v08 | 2026-02-04 | Sisyphus | 영어 UI 적용 (home.py), None 처리 추가 |
+| v09 | 2026-02-05 | Sisyphus | **비밀번호 변경 기능 추가** - 사용자/관리자 기존 비밀번호 인증 후 새 비밀번호로 변경 가능 |
 
 ---
 
@@ -585,3 +586,105 @@ streamlit run dice_app/app.py
 - `status`, `is_blacklisted` 컬럼 제거
 - 승인/거절 버튼 제거 (status가 없으므로)
 - 삭제 버튼으로 대체
+
+---
+
+# 12. 비밀번호 변경 기능 (2026-02-05)
+
+## 12.1 개요
+
+사용자와 관리자가 기존 비밀번호로 인증 후 새 비밀번호로 변경할 수 있는 기능 추가.
+
+## 12.2 추가된 파일
+
+| 파일 | 설명 |
+|------|------|
+| `dice_app/views/change_password.py` | 사용자 비밀번호 변경 페이지 |
+
+## 12.3 수정된 파일
+
+### auth.py 수정
+```python
+# 새 함수 추가
+def change_user_password(user_id: str, old_password: str, new_password: str) -> tuple[bool, str]:
+    """사용자 비밀번호 변경 - 기존 비밀번호 인증 후 새 비밀번호로 변경"""
+
+def change_admin_password(admin_id: str, old_password: str, new_password: str) -> tuple[bool, str]:
+    """관리자 비밀번호 변경 - 기존 비밀번호 인증 후 새 비밀번호로 변경"""
+
+# 기존 함수 수정
+def logout(): ...
+# login 함수: 누락된 return 문 추가 (fallback)
+```
+
+### database.py 수정
+```python
+# 새 함수 추가
+def update_user_password(user_id: str, new_password_hash: str) -> bool:
+    """사용자 비밀번호 해시 업데이트"""
+
+def update_admin_password(admin_id: str, new_password_hash: str) -> bool:
+    """관리자 비밀번호 해시 업데이트"""
+```
+
+### app.py 수정
+```python
+# 일반 사용자 메뉴에 "🔐 Change Password" 추가
+page = st.radio(
+    "Select Page",
+    ["🏠 Home", "📝 Make Reservation", "📊 My Reservations", "🔐 Change Password"],
+)
+
+# 라우팅 추가
+elif page == "🔐 Change Password":
+    import views.change_password
+    views.change_password.show()
+```
+
+### views/master_admin.py 수정
+```python
+#管理员页面新增密码修改区域
+st.markdown("### 🔐 Change My Password")
+# 비밀번호 변경 폼 추가 (기존 비밀번호 확인 + 새 비밀번호)
+```
+
+### views/admin_dashboard.py 수정
+```python
+#管理员操作区新增密码修改链接
+col1, col2 = st.columns(2)
+with col1:
+    if st.button("🔐 Change My Password", use_container_width=True):
+        st.session_state["page"] = "admin_management"
+        st.rerun()
+```
+
+## 12.4 기능 상세
+
+### 사용자 비밀번호 변경 페이지 (`change_password.py`)
+- 기존 비밀번호 입력 → 새 비밀번호 입력 → 새 비밀번호 확인
+- 검증:
+  - 기존 비밀번호 미입력 에러
+  - 새 비밀번호 8자 미만 에러
+  - 새 비밀번호 불일치 에러
+  - 기존 비밀번호와 동일 시 에러
+- 성공 시: 로그아웃 후 새 비밀번호로 재로그인 요청
+
+### 관리자 비밀번호 변경 (master_admin.py)
+- 마스터/관리자 계정용 비밀번호 변경 섹션
+- 동일한 검증 로직 적용
+- 마스터管理员页面底部显示
+
+## 12.5 네비게이션
+
+| 사용자 유형 | 접근 경로 |
+|------------|-----------|
+| 일반 사용자 | 사이드바 Menu → 🔐 Change Password |
+| 관리자 | Admin Dashboard → 🔐 Change My Password 버튼 |
+| 마스터 | Admin Account Management 페이지 하단 |
+
+## 12.6 보안 사항
+
+- 기존 비밀번호 인증 필수
+- 새 비밀번호 최소 8자
+- bcrypt 해싱 후 저장
+- 비밀번호 변경 후 자동 로그아웃

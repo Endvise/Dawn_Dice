@@ -57,6 +57,20 @@ def show():
                 participant_count = get_participant_count(session["id"])
                 approved_count = get_approved_reservation_count(session["id"])
 
+                # Get creator name from created_by user ID
+                created_by = session.get("created_by", "")
+                creator_name = "Unknown"
+                if created_by:
+                    admin = db.get_admin_by_id(created_by)
+                    if admin:
+                        creator_name = admin.get("nickname") or admin.get(
+                            "username", "Unknown"
+                        )
+                    else:
+                        user = db.get_user_by_id(created_by)
+                        if user:
+                            creator_name = user.get("nickname", "Unknown")
+
                 with st.expander(
                     f"{status_badge} Session {session['session_number']} - {session['session_name']}"
                 ):
@@ -65,7 +79,7 @@ def show():
                     **Session Date**: {session["session_date"]}
                     **Max Participants**: {session["max_participants"]}
                     **Participants**: {participant_count} (existing) + {approved_count} (reservations) = {participant_count + approved_count}
-                    **Created By**: {session.get("creator_name", "Unknown")}
+                    **Created By**: {creator_name}
                     **Created At**: {session["created_at"]}
                     """)
 

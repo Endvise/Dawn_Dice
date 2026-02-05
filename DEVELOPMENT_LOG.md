@@ -1013,3 +1013,46 @@ seen_commander_ids = set()
 7. Credentials CSV 다운로드
 8. 참여자에게 배포
 ```
+
+---
+
+# 17. 세션 삭제 기능 수정 (2026-02-05)
+
+## 17.1 문제
+
+- 세션 삭제 버튼 클릭 시 반응 없음
+- 삭제 확인 대화상자 표시되지 않음
+
+## 17.2 원인
+
+- Streamlit의 session_state가 expander 내부에서 초기화되어 상태가 유지되지 않음
+- 복잡한 상태 키命名로 인한 혼란
+
+## 17.3 수정 내용
+
+### 함수 상단에서 상태 초기화
+```python
+def show():
+    # 단일 confirm 상태로 관리
+    if "delete_confirm_id" not in st.session_state:
+        st.session_state["delete_confirm_id"] = None
+```
+
+### 간소화된 확인 흐름
+```python
+if st.session_state.get("delete_confirm_id") == session["id"]:
+    # 삭제 확인 대화상자 표시
+    if st.button("Yes, Delete"):
+        delete_session(session["id"])
+else:
+    if st.button("Delete"):
+        st.session_state["delete_confirm_id"] = session["id"]
+```
+
+## 17.4 테스트 결과
+
+```bash
+# DELETE API 테스트
+Delete Status: 204
+Remaining Sessions: [] ✅
+```

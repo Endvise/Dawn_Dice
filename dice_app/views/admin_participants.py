@@ -79,14 +79,14 @@ def show():
 
     st.markdown("---")
 
-    # Tabs
-    tab1, tab2, tab3, tab4 = st.tabs(
-        ["Participants List", "Add to Session", "Import Excel", "Manage Users"]
+    # ===== TABS: Clear 5-tab structure =====
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(
+        ["👥 Participants", "➕ Add", "📋 Reservations", "📥 Import Excel", "👤 Users"]
     )
 
     # ========== Tab 1: Participants List ==========
     with tab1:
-        st.markdown("### Participants List")
+        st.markdown("### 👥 Participants")
 
         col1, col2, col3 = st.columns(3)
 
@@ -164,99 +164,212 @@ def show():
         else:
             st.info("No participants found.")
 
-    # ========== Tab 2: Add to Session ==========
+    # ========== Tab 2: Add Participants ==========
     with tab2:
-        st.markdown("### Add Participants to Session")
+        st.markdown("### ➕ Add Participants")
 
         if not active_session:
             st.warning("No active session. Create a session first.")
         else:
-            st.info(
-                f"Add participants to Session: **{active_session.get('session_name')}**"
-            )
+            # Nested tabs: New Participant / From Previous Session
+            tab2_1, tab2_2 = st.tabs(["✨ New Participant", "📥 From Previous Session"])
 
-            # Get participants NOT in current session
-            participants_not_in_session = [
-                p for p in participants if p.get("event_name") != current_session_name
-            ]
-
-            if participants_not_in_session:
+            # ----- Tab 2-1: Add New Participant -----
+            with tab2_1:
                 st.markdown(
-                    f"**{len(participants_not_in_session)}** participants available to add"
+                    f"**Add to Session**: {active_session.get('session_name', 'N/A')}"
                 )
 
-                # Select all checkbox
-                select_all = st.checkbox("Select All", key="select_all_not_in_session")
-
-                # Session to add
-                session_event_name = active_session.get("session_name")
-
-                if st.button(
-                    f"Add Selected to Session '{session_event_name}'", type="primary"
-                ):
-                    selected_ids = st.session_state.get("selected_participants", [])
-                    if not selected_ids:
-                        st.error("No participants selected.")
-                    else:
-                        added_count = 0
-                        for p in participants_not_in_session:
-                            if str(p.get("id")) in selected_ids or str(p.get("id")) in [
-                                str(s) for s in selected_ids
-                            ]:
-                                try:
-                                    db.update_participant(
-                                        p["id"],
-                                        event_name=session_event_name,
-                                        completed=0,
-                                        confirmed=0,
-                                        wait_confirmed=0,
-                                    )
-                                    added_count += 1
-                                except Exception as e:
-                                    st.error(f"Error adding {p.get('nickname')}: {e}")
-                        st.success(f"Added {added_count} participants to session!")
-                        st.rerun()
-
-                # Display participants not in session
-                for p in participants_not_in_session:
-                    col_cb, col_info = st.columns([1, 4])
-                    with col_cb:
-                        checked = st.checkbox(
-                            "", key=f"select_{p.get('id')}", value=select_all
+                with st.form("add_participant_form"):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        new_nickname = st.text_input("Nickname *", key="new_nickname")
+                        new_commander_id = st.text_input(
+                            "Commander ID * (10 digits)", key="new_commander_id"
                         )
-                        if checked:
-                            if "selected_participants" not in st.session_state:
-                                st.session_state["selected_participants"] = []
-                            if (
-                                str(p.get("id"))
-                                not in st.session_state["selected_participants"]
-                            ):
-                                st.session_state["selected_participants"].append(
-                                    str(p.get("id"))
+                    with col2:
+                        new_server = st.text_input("Server *", key="new_server")
+                        new_alliance = st.text_input(
+                            "Alliance (Optional)", key="new_alliance"
+                        )
+
+                    st.markdown("---")
+                    if st.form_submit_button(
+                        "➕ Add Participant", type="primary", use_container_width=True
+                    ):
+                        if not new_commander_id or not new_nickname or not new_server:
+                            st.error("Please fill in all required fields (*)")
+                        elif (
+                            len(new_commander_id) != 10
+                            or not new_commander_id.isdigit()
+                        ):
+                            st.error("Commander ID must be 10 digits")
+                        else:
+                            # Check if user exists
+                            existing = db.get_user_by_commander_number(new_commander_id)
+                            if existing:
+                                st.info(
+                                    "Existing user found. Will add to participants with existing info."
                                 )
-                    with col_info:
-                        st.markdown(
-                            f"**{p.get('nickname', 'Unknown')}** - {p.get('igg_id', 'N/A')} - {p.get('affiliation', 'N/A')}"
-                        )
-            else:
-                st.info("All participants are already in this session.")
+                                nickname = existing.get("nickname", "")
+                                server = existing.get("server", "")
+                                alliance = existing.get("alliance", "")
+                            else:
+                                # Create new user
+                                password = generate_password()
+                                password_hash = db.hash_password(password)
+                                user_data = {
+                                    "commander_number": new_commander_id,
+                                    "nickname": new_nickname,
+                                    "password_hash": password_hash,
+                                    "plaintext_password": password,
+                                    "server": new_server,
+                                    "alliance": new_alliance if new_alliance else None,
+                                    "is_active": True,
+                                }
+                                user_id = db.insert("users", user_data)
+                                nickname = new_nickname
+                                server = new_server
+                                alliance = new_alliance if new_alliance else None
+                                st.success(f"New user created! Password: {password}")
 
-        st.markdown("---")
+                            # Add to participants
+                            participant_data = {
+                                "nickname": nickname,
+                                "igg_id": new_commander_id,
+                                "affiliation": server,
+                                "alliance": alliance,
+                                "event_name": active_session.get("session_name"),
+                                "completed": 0,
+                                "confirmed": 0,
+                                "wait_confirmed": 0,
+                                "notes": f"Added by admin - {user.get('username', 'admin')}",
+                            }
+                            db.add_participant(participant_data)
+                            st.success("Participant added!")
+                            st.rerun()
 
-        # ========== Add to Reservations ==========
-        st.markdown("### Add to Reservations")
+            # ----- Tab 2-2: From Previous Session -----
+            with tab2_2:
+                st.markdown("#### Import from Previous Session")
+
+                # Get all sessions except current
+                all_sessions = db.fetch_all("event_sessions")
+                session_names = [
+                    s.get("session_name")
+                    for s in all_sessions
+                    if s.get("session_name")
+                    and s.get("session_name") != current_session_name
+                ]
+
+                if not session_names:
+                    st.info("No previous sessions found.")
+                else:
+                    prev_session = st.selectbox(
+                        "Select Previous Session", session_names
+                    )
+
+                    if prev_session:
+                        prev_participants = [
+                            p
+                            for p in participants
+                            if p.get("event_name") == prev_session
+                        ]
+
+                        if not prev_participants:
+                            st.info(f"No participants in {prev_session}")
+                        else:
+                            st.markdown(
+                                f"**Found {len(prev_participants)} participants**"
+                            )
+
+                            # Select all
+                            select_all_prev = st.checkbox(
+                                "Select All", key="select_all_prev"
+                            )
+
+                            selected_prev = []
+                            for p in prev_participants:
+                                col_cb, col_info = st.columns([1, 4])
+                                with col_cb:
+                                    if st.checkbox(
+                                        "",
+                                        key=f"prev_{p.get('id')}",
+                                        value=select_all_prev,
+                                    ):
+                                        selected_prev.append(p.get("id"))
+                                with col_info:
+                                    st.markdown(
+                                        f"**{p.get('nickname', 'Unknown')}** - {p.get('igg_id', 'N/A')}"
+                                    )
+
+                            st.markdown("---")
+                            if st.button(
+                                "Add Selected to Current Session", type="primary"
+                            ):
+                                if not selected_prev:
+                                    st.error("No participants selected.")
+                                else:
+                                    added = 0
+                                    for p in prev_participants:
+                                        if p.get("id") in selected_prev:
+                                            try:
+                                                # Get user info
+                                                user = db.get_user_by_commander_number(
+                                                    p.get("igg_id", "")
+                                                )
+                                                nickname = (
+                                                    user.get("nickname", "")
+                                                    if user
+                                                    else p.get("nickname", "")
+                                                )
+                                                server = (
+                                                    user.get("server", "")
+                                                    if user
+                                                    else p.get("affiliation", "")
+                                                )
+                                                alliance = (
+                                                    user.get("alliance", "")
+                                                    if user
+                                                    else p.get("alliance", "")
+                                                )
+
+                                                db.add_participant(
+                                                    {
+                                                        "nickname": nickname,
+                                                        "igg_id": p.get("igg_id", ""),
+                                                        "affiliation": server,
+                                                        "alliance": alliance,
+                                                        "event_name": current_session_name,
+                                                        "completed": 0,
+                                                        "confirmed": 0,
+                                                        "wait_confirmed": 0,
+                                                        "notes": f"Imported from {prev_session}",
+                                                    }
+                                                )
+                                                added += 1
+                                            except Exception as e:
+                                                st.error(f"Error: {e}")
+                                    st.success(f"Added {added} participants!")
+                                    st.rerun()
+
+    # ========== Tab 3: Reservations ==========
+    with tab3:
+        st.markdown("### 📋 Reservations")
 
         if not active_session:
             st.warning("No active session.")
         else:
-            st.info("Add approved participants to reservation list")
+            st.markdown(f"**Session**: {active_session.get('session_name', 'N/A')}")
 
             # Get participants in current session
             session_participants = [
                 p for p in participants if p.get("event_name") == current_session_name
             ]
 
-            if session_participants:
+            if not session_participants:
+                st.info("No participants in this session.")
+            else:
                 # Separate by reservation status
                 in_reservation = []
                 not_in_reservation = []
@@ -270,31 +383,64 @@ def show():
                 col_r1, col_r2 = st.columns(2)
 
                 with col_r1:
-                    st.markdown(f"**In Reservation ({len(in_reservation)})**")
+                    st.markdown(f"**✅ In Reservation ({len(in_reservation)})**")
                     for p in in_reservation:
-                        st.success(f"✅ {p.get('nickname')} - {p.get('igg_id')}")
+                        with st.container(border=True):
+                            col_a, col_b = st.columns([3, 1])
+                            with col_a:
+                                st.markdown(
+                                    f"**{p.get('nickname', 'Unknown')}** - {p.get('igg_id', 'N/A')}"
+                                )
+                            with col_b:
+                                if st.button(
+                                    "❌",
+                                    key=f"cancel_res_{p.get('id')}",
+                                    help="Cancel reservation",
+                                ):
+                                    st.error("Cancel functionality to be implemented")
 
                 with col_r2:
-                    st.markdown(f"**Not in Reservation ({len(not_in_reservation)})**")
-
+                    st.markdown(
+                        f"**⏳ Not in Reservation ({len(not_in_reservation)})**"
+                    )
                     select_all_res = st.checkbox(
-                        "Select All for Reservation", key="select_all_reservation"
+                        "Select All", key="select_all_reservation"
                     )
 
-                    if st.button("Add Selected to Reservations", type="primary"):
-                        selected = st.session_state.get("selected_for_reservation", [])
-                        if not selected:
+                    selected_ids = []
+                    for p in not_in_reservation:
+                        col_cb, col_info = st.columns([1, 4])
+                        with col_cb:
+                            if st.checkbox(
+                                "", key=f"res_{p.get('id')}", value=select_all_res
+                            ):
+                                selected_ids.append(p.get("id"))
+                        with col_info:
+                            st.markdown(
+                                f"**{p.get('nickname', 'Unknown')}** - {p.get('igg_id', 'N/A')}"
+                            )
+
+                    st.markdown("---")
+                    if st.button(
+                        "Add Selected to Reservations",
+                        type="primary",
+                        use_container_width=True,
+                    ):
+                        if not selected_ids:
                             st.error("No participants selected.")
                         else:
                             added = 0
                             for p in not_in_reservation:
-                                if str(p.get("id")) in selected or str(p.get("id")) in [
-                                    str(s) for s in selected
-                                ]:
+                                if p.get("id") in selected_ids:
                                     try:
-                                        # Create reservation for this participant
+                                        # Get user info
+                                        user_info = db.get_user_by_commander_number(
+                                            p.get("igg_id", "")
+                                        )
                                         db.create_reservation(
-                                            user_id=p.get("user_id") or user["id"],
+                                            user_id=user_info.get("id")
+                                            if user_info
+                                            else None,
                                             nickname=p.get("nickname", ""),
                                             commander_number=p.get("igg_id", ""),
                                             server=p.get("affiliation", ""),
@@ -306,30 +452,9 @@ def show():
                             st.success(f"Added {added} to reservations!")
                             st.rerun()
 
-                    for p in not_in_reservation:
-                        col_cb, col_info = st.columns([1, 4])
-                        with col_cb:
-                            checked = st.checkbox(
-                                "", key=f"res_{p.get('id')}", value=select_all_res
-                            )
-                            if checked:
-                                if "selected_for_reservation" not in st.session_state:
-                                    st.session_state["selected_for_reservation"] = []
-                                if (
-                                    str(p.get("id"))
-                                    not in st.session_state["selected_for_reservation"]
-                                ):
-                                    st.session_state["selected_for_reservation"].append(
-                                        str(p.get("id"))
-                                    )
-                        with col_info:
-                            st.markdown(
-                                f"**{p.get('nickname')}** - {p.get('igg_id', 'N/A')}"
-                            )
-
-    # ========== Tab 3: Import Excel ==========
-    with tab3:
-        st.markdown("### Import Excel - Bulk Registration")
+    # ========== Tab 4: Import Excel ==========
+    with tab4:
+        st.markdown("### 📥 Import Excel")
 
         st.markdown("""
         **Excel Format:**
@@ -490,6 +615,12 @@ def show():
                                     if existing_user:
                                         user_id = existing_user["id"]
                                         action = "existing"
+                                        # Use existing user info
+                                        nickname = existing_user.get("nickname", "")
+                                        user_server = existing_user.get("server", "")
+                                        user_alliance = existing_user.get(
+                                            "alliance", ""
+                                        )
                                         # Store plaintext password if not exists
                                         if not existing_user.get("plaintext_password"):
                                             try:
@@ -501,10 +632,10 @@ def show():
                                             except:
                                                 pass
                                     else:
-                                        # Create new user with empty nickname
+                                        # Create new user
                                         user_data = {
                                             "commander_number": commander_id,
-                                            "nickname": "",  # Empty - user will set later
+                                            "nickname": nickname,  # Use nickname from form
                                             "password_hash": password_hash,
                                             "plaintext_password": password,
                                             "server": server,
@@ -513,13 +644,16 @@ def show():
                                         }
                                         user_id = db.insert("users", user_data)
                                         action = "new"
+                                        nickname = ""
+                                        user_server = server
+                                        user_alliance = alliance
 
-                                    # Add to participants
+                                    # Add to participants - use existing user info
                                     participant_data = {
-                                        "nickname": "",  # Empty - user will set later
+                                        "nickname": nickname,  # ✅ Existing user's nickname
                                         "igg_id": commander_id,
-                                        "affiliation": server,
-                                        "alliance": alliance,
+                                        "affiliation": user_server,  # ✅ Existing user's server
+                                        "alliance": user_alliance,  # ✅ Existing user's alliance
                                         "event_name": import_session,
                                         "completed": 0,
                                         "confirmed": 0,
@@ -568,9 +702,9 @@ def show():
             except Exception as e:
                 st.error(f"Error reading file: {e}")
 
-    # ========== Tab 4: Manage Users ==========
-    with tab4:
-        st.markdown("### Manage User Accounts")
+    # ========== Tab 5: Users ==========
+    with tab5:
+        st.markdown("### 👤 User Accounts")
 
         st.markdown("""
         View and manage user accounts created from participant imports.
@@ -578,7 +712,6 @@ def show():
         - Reset passwords if needed
         """)
 
-        # Show users
         if users:
             search_user = st.text_input(
                 "Search User", placeholder="Nickname/Commander ID", key="search_user"
@@ -598,25 +731,18 @@ def show():
 
             st.markdown(f"**Users ({len(filtered_users)})**")
 
-            # Initialize show_password state
-            if "show_passwords" not in st.session_state:
-                st.session_state["show_passwords"] = {}
-
-            # Toggle to show all passwords
             show_all = st.checkbox(
-                "👁️ Show All Passwords", value=False, key="show_all_passwords"
+                "Show All Passwords", value=False, key="show_all_passwords"
             )
 
-            for u in filtered_users[:50]:  # Show first 50
+            for u in filtered_users[:50]:
                 user_id = str(u.get("id", ""))
-
-                # Password visibility toggle
                 show_pw = st.session_state.get(f"show_pw_{user_id}", False)
                 if show_all:
                     show_pw = True
 
                 with st.expander(
-                    f"👤 {u.get('nickname', 'Unknown')} - {u.get('commander_number', 'N/A')} {'🔑' if u.get('plaintext_password') else ''}"
+                    f"{u.get('nickname', 'Unknown')} - {u.get('commander_number', 'N/A')}"
                 ):
                     col1, col2 = st.columns([1, 1])
 
@@ -631,91 +757,72 @@ def show():
                         )
 
                     with col2:
-                        status = "✅ Active" if u.get("is_active") else "❌ Inactive"
+                        status = "Active" if u.get("is_active") else "Inactive"
                         st.markdown(f"**Status**: {status}")
                         st.markdown(
                             f"**Created**: {str(u.get('created_at', 'N/A'))[:10]}"
                         )
 
-                        # Password display
                         if u.get("plaintext_password"):
                             col_pw, col_toggle = st.columns([3, 1])
                             with col_pw:
-                                if show_pw:
-                                    st.text_input(
-                                        "Password",
-                                        value=u.get("plaintext_password", ""),
-                                        type="default",
-                                        disabled=True,
-                                        key=f"pw_display_{user_id}",
-                                    )
-                                else:
-                                    st.text_input(
-                                        "Password",
-                                        value="••••••••••••",
-                                        type="password",
-                                        disabled=True,
-                                        key=f"pw_hidden_{user_id}",
-                                    )
+                                pw_value = (
+                                    u.get("plaintext_password", "")
+                                    if show_pw
+                                    else "••••••••••••"
+                                )
+                                st.text_input(
+                                    "Password",
+                                    value=pw_value,
+                                    type="default" if show_pw else "password",
+                                    disabled=True,
+                                    key=f"pw_{user_id}",
+                                )
                             with col_toggle:
                                 if st.button(
-                                    "👁️" if not show_pw else "🙈",
-                                    key=f"toggle_pw_{user_id}",
+                                    "Show" if not show_pw else "Hide",
+                                    key=f"toggle_{user_id}",
                                 ):
                                     st.session_state[f"show_pw_{user_id}"] = not show_pw
                                     st.rerun()
                         else:
-                            st.warning("No initial password stored")
+                            st.warning("No password stored")
 
-                        col_reset, col_copy = st.columns(2)
-                        with col_reset:
-                            if st.button(
-                                "🔄 Reset Password",
-                                key=f"reset_pw_{user_id}",
-                                use_container_width=True,
-                            ):
-                                new_pw = generate_password()
-                                new_hash = db.hash_password(new_pw)
-                                try:
-                                    db.update(
-                                        "users",
-                                        {
-                                            "password_hash": new_hash,
-                                            "plaintext_password": new_pw,
-                                        },
-                                        {"id": f"eq.{user_id}"},
-                                    )
-                                    st.success(f"Password reset! New: {new_pw}")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Error: {e}")
-                        with col_copy:
-                            if u.get("plaintext_password"):
-                                # Copy button simulation (would need JavaScript in Streamlit)
-                                st.info(f"Copy: {u.get('plaintext_password')}")
+                        if st.button(
+                            "Reset Password",
+                            key=f"reset_{user_id}",
+                            use_container_width=True,
+                        ):
+                            new_pw = generate_password()
+                            new_hash = db.hash_password(new_pw)
+                            db.update(
+                                "users",
+                                {
+                                    "password_hash": new_hash,
+                                    "plaintext_password": new_pw,
+                                },
+                                {"id": f"eq.{user_id}"},
+                            )
+                            st.success(f"Reset! {new_pw}")
+                            st.rerun()
 
-            # Download all credentials
             if any(u.get("plaintext_password") for u in filtered_users):
-                st.markdown("---")
-                all_creds = []
-                for u in filtered_users:
-                    if u.get("plaintext_password"):
-                        all_creds.append(
-                            {
-                                "Nickname": u.get("nickname", ""),
-                                "Commander ID": u.get("commander_number", ""),
-                                "Password": u.get("plaintext_password", ""),
-                                "Server": u.get("server", ""),
-                                "Alliance": u.get("alliance", "") or "",
-                            }
-                        )
+                all_creds = [
+                    {
+                        "Nickname": u.get("nickname", ""),
+                        "ID": u.get("commander_number", ""),
+                        "Password": u.get("plaintext_password", ""),
+                        "Server": u.get("server", ""),
+                        "Alliance": u.get("alliance", ""),
+                    }
+                    for u in filtered_users
+                    if u.get("plaintext_password")
+                ]
                 if all_creds:
-                    creds_df = pd.DataFrame(all_creds)
-                    csv = creds_df.to_csv(index=False)
                     st.download_button(
-                        "📥 Download All Credentials",
-                        csv,
-                        "all_user_credentials.csv",
+                        "Download All",
+                        pd.DataFrame(all_creds).to_csv(index=False),
+                        "creds.csv",
                         "text/csv",
                         use_container_width=True,
                     )

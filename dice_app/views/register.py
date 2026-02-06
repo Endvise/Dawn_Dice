@@ -162,14 +162,38 @@ def show():
                         alliance=alliance if alliance else None,
                     )
 
-                    st.success(f"Registration complete! (ID: {user_id})")
-                    st.info("Please log in from the login page.")
+                    # Success page
+                    st.success("Registration Complete!")
 
-                    # Go to login page
-                    if st.button("Go to Login", use_container_width=True):
-                        st.session_state["show_register"] = False
-                        st.session_state["page"] = "home"
-                        st.rerun()
+                    # Show user info
+                    with st.container(border=True):
+                        st.markdown("### Account Created!")
+                        st.markdown(f"**📝 Commander ID**: {commander_id}")
+                        st.markdown(f"**👤 Nickname**: {nickname}")
+                        st.markdown(f"**🏠 Server**: {server}")
+                        st.markdown(
+                            f"**⚔️ Alliance**: {alliance if alliance else 'None'}"
+                        )
+
+                    st.info("Please save your credentials before logging in!")
+
+                    # Navigation buttons
+                    st.markdown("---")
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        if st.button(
+                            "🔐 Go to Login", type="primary", use_container_width=True
+                        ):
+                            st.session_state["show_register"] = False
+                            st.session_state["page"] = "home"
+                            st.rerun()
+
+                    with col2:
+                        if st.button("← Back to Home", use_container_width=True):
+                            st.session_state["show_register"] = False
+                            st.session_state["page"] = "home"
+                            st.rerun()
 
                 except Exception as e:
                     st.error(f"Error during registration: {e}")

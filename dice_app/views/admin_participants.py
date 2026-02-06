@@ -521,8 +521,8 @@ def show():
                 # Process data
                 processed_data = []
                 seen_commander_ids = set()
-                duplicate_count = 0
-                invalid_count = 0
+                duplicate_ids = []
+                invalid_ids = []
 
                 for idx, row in df.iterrows():
                     # Extract commander ID (10 digits)
@@ -532,12 +532,23 @@ def show():
                     if match:
                         commander_id = match.group()
                     else:
-                        invalid_count += 1
-                        continue  # Skip if no 10-digit ID
+                        # Track invalid IDs
+                        invalid_ids.append(
+                            {
+                                "row": idx + 1,
+                                "value": raw_id[:50] if raw_id else "(빈 값)",
+                            }
+                        )
+                        continue
 
                     # Remove duplicates
                     if commander_id in seen_commander_ids:
-                        duplicate_count += 1
+                        duplicate_ids.append(
+                            {
+                                "row": idx + 1,
+                                "id": commander_id,
+                            }
+                        )
                         continue
                     seen_commander_ids.add(commander_id)
 
@@ -565,29 +576,27 @@ def show():
                 else:
                     preview_df = pd.DataFrame(processed_data)
 
-                    # Show all data with pagination
+                    # Show all data
                     st.dataframe(preview_df, use_container_width=True)
 
-                    # Show debug info
+                    # Show debug info with expandable details
                     col_debug1, col_debug2, col_debug3 = st.columns(3)
                     with col_debug1:
                         st.info(f"**총 행 수**: {len(df)}")
                     with col_debug2:
-                        st.warning(f"**중복 제거됨**: {duplicate_count}")
+                        st.warning(f"**중복 제거됨**: {len(duplicate_ids)}개")
+                        if duplicate_ids:
+                            with st.expander("중복 ID 목록"):
+                                dup_df = pd.DataFrame(duplicate_ids)
+                                st.dataframe(dup_df, use_container_width=True)
                     with col_debug3:
-                        st.error(f"**유효하지 않은 ID**: {invalid_count}")
+                        st.error(f"**유효하지 않은 ID**: {len(invalid_ids)}개")
+                        if invalid_ids:
+                            with st.expander("유효하지 않은 ID 목록"):
+                                invalid_df = pd.DataFrame(invalid_ids)
+                                st.dataframe(invalid_df, use_container_width=True)
 
                     st.info(f"**최종 유효 항목**: {len(processed_data)}개")
-
-                    st.markdown("---")
-
-                    # Import options
-                    col_opt1, col_opt2 = st.columns(2)
-
-                    with col_opt1:
-                        st.info(
-                            f"**Session**: {import_session if import_session != 'Select Session...' else 'Not selected'}"
-                        )
 
                     with col_opt2:
                         st.info(

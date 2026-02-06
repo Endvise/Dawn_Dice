@@ -14,15 +14,30 @@ Access: admin, master only
 """
 
 import streamlit as st
-from ..auth import is_authenticated, is_admin
-from .. import database as db
-from ..groq_utils.groq_client import (
+import sys
+from pathlib import Path
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from auth import is_authenticated, is_admin
+from database import (
+    get_active_session,
+    get_session_check_stats,
+    get_session_participants_check,
+    list_reservations,
+)
+from groq_utils.groq_client import (
     call_groq_api,
     get_groq_config,
     GroqResponse,
     test_groq_connection,
 )
 from typing import Optional, List, Dict
+
+# Add groq_utils to path
+groq_utils_path = str(Path(__file__).parent.parent / "groq_utils")
+if groq_utils_path not in sys.path:
+    sys.path.insert(0, groq_utils_path)
 
 
 # =============================================================================
@@ -186,7 +201,7 @@ def validate_user_input(text: str) -> tuple[bool, str]:
 
 def get_database_context() -> str:
     """Get current database state for AI context"""
-    active_session = db.get_active_session()
+    active_session = get_active_session()
 
     if not active_session:
         return "현재 활성화된 세션이 없습니다."
@@ -194,7 +209,7 @@ def get_database_context() -> str:
     session_id = str(active_session["id"])
 
     try:
-        stats = db.get_session_check_stats(session_id)
+        stats = get_session_check_stats(session_id)
     except Exception:
         stats = {
             "total": 0,
@@ -204,12 +219,12 @@ def get_database_context() -> str:
         }
 
     try:
-        participants = db.get_session_participants_check(session_id)
+        participants = get_session_participants_check(session_id)
     except Exception:
         participants = []
 
     try:
-        reservations = db.list_reservations()
+        reservations = list_reservations()
     except Exception:
         reservations = []
 

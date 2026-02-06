@@ -564,7 +564,9 @@ def show():
                     st.warning("No valid commander IDs found (10 digits required).")
                 else:
                     preview_df = pd.DataFrame(processed_data)
-                    st.dataframe(preview_df.head(20), use_container_width=True)
+
+                    # Show all data with pagination
+                    st.dataframe(preview_df, use_container_width=True)
 
                     # Show debug info
                     col_debug1, col_debug2, col_debug3 = st.columns(3)
@@ -575,9 +577,7 @@ def show():
                     with col_debug3:
                         st.error(f"**유효하지 않은 ID**: {invalid_count}")
 
-                    st.info(
-                        f"**최종 유효 항목**: {len(processed_data)}개 (중복 제거 후)"
-                    )
+                    st.info(f"**최종 유효 항목**: {len(processed_data)}개")
 
                     st.markdown("---")
 

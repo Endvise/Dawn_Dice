@@ -515,7 +515,9 @@ def show():
 
                 all_cols = list(df.columns)
 
-                with col1:
+                col_mapping1, col_mapping2, col_mapping3 = st.columns(3)
+
+                with col_mapping1:
                     commander_id_col = st.selectbox(
                         "Commander ID Column (10 digits)",
                         all_cols,
@@ -523,7 +525,15 @@ def show():
                         help="Column containing 10-digit commander ID",
                     )
 
-                with col2:
+                with col_mapping2:
+                    nickname_col = st.selectbox(
+                        "Nickname Column",
+                        ["None"] + all_cols,
+                        index=2 if len(all_cols) > 2 else 0,
+                        help="Column containing nickname (optional)",
+                    )
+
+                with col_mapping3:
                     affiliation_col = st.selectbox(
                         "Affiliation Column",
                         ["None"] + all_cols,
@@ -568,6 +578,11 @@ def show():
                         continue
                     seen_commander_ids.add(commander_id)
 
+                    # Get nickname from selected column
+                    nickname = ""
+                    if nickname_col != "None" and pd.notna(row.get(nickname_col)):
+                        nickname = str(row[nickname_col]).strip()
+
                     # Parse affiliation: "#000 alliance_name"
                     server = ""
                     alliance = ""
@@ -581,7 +596,7 @@ def show():
                     processed_data.append(
                         {
                             "commander_id": commander_id,
-                            "nickname": "",  # Empty - user will set later
+                            "nickname": nickname,
                             "server": server,
                             "alliance": alliance,
                         }
@@ -688,7 +703,7 @@ def show():
                                             # Create new user
                                             user_data = {
                                                 "commander_number": commander_id,
-                                                "nickname": "",  # New user has no nickname yet
+                                                "nickname": data.get("nickname", ""),
                                                 "password_hash": password_hash,
                                                 "plaintext_password": password,
                                                 "server": server,
@@ -697,16 +712,18 @@ def show():
                                             }
                                             user_id = db.insert("users", user_data)
                                             action = "new"
-                                            nickname = ""
-                                            user_server = server
-                                            user_alliance = alliance
+
+                                        # Get data from processed_data
+                                        data_nickname = data.get("nickname", "")
+                                        data_server = data.get("server", "")
+                                        data_alliance = data.get("alliance", "")
 
                                         # Add to participants
                                         participant_data = {
-                                            "nickname": nickname if nickname else "",
+                                            "nickname": data_nickname,
                                             "igg_id": commander_id,
-                                            "affiliation": user_server,
-                                            "alliance": user_alliance,
+                                            "affiliation": data_server,
+                                            "alliance": data_alliance,
                                             "event_name": import_session_name,
                                             "completed": 0,
                                             "confirmed": 0,

@@ -37,9 +37,9 @@ def main():
 
             # General user/admin/master common menu
             if auth.is_admin():
-                # Admin page selection (Korean for admin)
+                # Admin page selection
                 page = st.radio(
-                    "관리자 페이지 선택",
+                    "Select Admin Page",
                     [
                         "🏠 Home",
                         "📝 Make Reservation",

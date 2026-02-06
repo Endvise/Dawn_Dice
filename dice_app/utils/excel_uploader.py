@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Excel to Supabase Uploader
-엑셀 파일을 읽어서 Supabase에 자동 업로드
+Reads Excel files and uploads to Supabase automatically
 """
 
 import streamlit as st
@@ -74,7 +74,7 @@ def validate_data(df: pd.DataFrame, table_name: str) -> tuple[bool, List[str]]:
     required = required_fields.get(table_name, [])
     for field in required:
         if field not in df.columns:
-            errors.append(f"필수 컬럼 '{field}'이(가) 없습니다.")
+            errors.append(f"Required column '{field}' is missing.")
     return len(errors) == 0, errors
 
 
@@ -85,26 +85,26 @@ def upload_excel_to_supabase(
 ) -> Dict:
     """Upload Excel file to Supabase."""
     try:
-        # 엑셀/CSV 파일 읽기
+        # Read Excel/CSV file
         if uploaded_file.name.endswith(".csv"):
             df = pd.read_csv(uploaded_file, skiprows=skip_rows)
         else:
             df = pd.read_excel(uploaded_file, skiprows=skip_rows)
 
-        st.write(f"**읽은 데이터:** {len(df)}행")
-        with st.expander("데이터 미리보기"):
+        st.write(f"**Data loaded:** {len(df)} rows")
+        with st.expander("Data Preview"):
             st.dataframe(df.head(10))
 
-        # 컬럼명 정규화
+        # Normalize column names
         df = normalize_column_names(df, table_name)
-        st.write(f"**정규화된 컬럼:** {list(df.columns)}")
+        st.write(f"**Normalized columns:** {list(df.columns)}")
 
-        # 데이터 검증
+        # Validate data
         is_valid, errors = validate_data(df, table_name)
         if not is_valid:
             return {"success": False, "errors": errors}
 
-        # Supabase에 업로드
+        # Upload to Supabase
         records = df.to_dict("records")
         uploaded_count = 0
         failed_count = 0
@@ -119,7 +119,7 @@ def upload_excel_to_supabase(
                 uploaded_count += 1
             else:
                 failed_count += 1
-                error_messages.append(f"행 {i + 1}: INSERT 실패")
+                error_messages.append(f"Row {i + 1}: INSERT failed")
 
         progress_bar.empty()
 
@@ -132,72 +132,72 @@ def upload_excel_to_supabase(
         }
 
     except Exception as e:
-        return {"success": False, "errors": [f"업로드 오류: {str(e)}"]}
+        return {"success": False, "errors": [f"Upload error: {str(e)}"]}
 
 
 def show_excel_upload_page():
     """Excel Upload Admin Page."""
-    st.title("📤 Excel → Supabase 업로드")
+    st.title("📤 Excel → Supabase Upload")
 
     st.info("""
-    **사용 방법:**
-    1. 업로드할 테이블 선택
-    2. 엑셀/CSV 파일 선택
-    3. 데이터 미리보기 확인
-    4. Supabase에 업로드
+    **Usage:**
+    1. Select table to upload
+    2. Choose Excel/CSV file
+    3. Preview data
+    4. Upload to Supabase
     """)
 
     st.markdown("---")
 
-    # 테이블 선택
+    # Select table
     table = st.selectbox(
-        "업로드할 테이블 선택",
+        "Select table to upload",
         ["users", "participants", "blacklist", "reservations"],
         format_func=lambda x: {
-            "users": "👤 사용자",
-            "participants": "📋 참여자",
-            "blacklist": "🚫 블랙리스트",
-            "reservations": "📅 예약",
+            "users": "👤 Users",
+            "participants": "📋 Participants",
+            "blacklist": "🚫 Blacklist",
+            "reservations": "📅 Reservations",
         }[x],
     )
 
-    # 테이블별 필수 컬럼 안내
+    # Required columns per table
     table_info = {
-        "users": "필수: 사령관번호, 비밀번호",
-        "participants": "필수: 닉네임",
-        "blacklist": "필수: 사령관번호",
-        "reservations": "필수: 사령관번호, 닉네임",
+        "users": "Required: commander_id, password",
+        "participants": "Required: nickname",
+        "blacklist": "Required: commander_id",
+        "reservations": "Required: commander_id, nickname",
     }
     st.caption(f"📌 {table_info[table]}")
 
-    # 파일 업로드
+    # File upload
     uploaded_file = st.file_uploader(
-        "엑셀/CSV 파일 선택",
+        "Select Excel/CSV file",
         type=["xlsx", "csv"],
-        help="첫 번째 행이 컬럼명으로 사용됩니다.",
+        help="First row will be used as column names.",
     )
 
     if uploaded_file:
-        # 미리보기
-        if st.checkbox("데이터 미리보기", value=True):
+        # Preview
+        if st.checkbox("Data Preview", value=True):
             try:
                 if uploaded_file.name.endswith(".csv"):
                     preview_df = pd.read_csv(uploaded_file)
                 else:
                     preview_df = pd.read_excel(uploaded_file)
                 st.dataframe(preview_df.head(5))
-                st.caption(f"총 {len(preview_df)}행")
+                st.caption(f"Total: {len(preview_df)} rows")
             except Exception as e:
-                st.error(f"미리보기 오류: {e}")
+                st.error(f"Preview error: {e}")
 
-        # 업로드 옵션
-        with st.expander("고급 옵션"):
-            skip_rows = st.number_input("건너뛸 행 수", min_value=0, value=0)
+        # Upload options
+        with st.expander("Advanced Options"):
+            skip_rows = st.number_input("Rows to skip", min_value=0, value=0)
 
-        # 업로드 버튼
+        # Upload button
         st.markdown("---")
-        if st.button("🚀 Supabase에 업로드", type="primary", use_container_width=True):
-            with st.spinner("업로드 중..."):
+        if st.button("🚀 Upload to Supabase", type="primary", use_container_width=True):
+            with st.spinner("Uploading..."):
                 result = upload_excel_to_supabase(
                     uploaded_file,
                     table,
@@ -206,37 +206,37 @@ def show_excel_upload_page():
 
             if result["success"]:
                 st.success(
-                    f"✅ 업로드 완료! "
-                    f"성공: {result['uploaded']}행"
+                    f"✅ Upload complete! "
+                    f"Success: {result['uploaded']} rows"
                     + (
-                        f", 실패: {result['failed']}행"
+                        f", Failed: {result['failed']} rows"
                         if result.get("failed", 0) > 0
                         else ""
                     )
                 )
             else:
-                st.error("❌ 업로드 실패:")
+                st.error("❌ Upload failed:")
                 for error in result.get("errors", []):
                     st.write(f"- {error}")
 
-            # 오류가 있으면 상세 정보 표시
+            # Show error details
             if result.get("errors") and len(result["errors"]) > 10:
-                st.warning(f"총 {len(result['errors'])}개의 오류가 발생했습니다.")
+                st.warning(f"Total {len(result['errors'])} errors occurred.")
 
 
 def show_blacklist_sync_page():
     """Blacklist Synchronization Page."""
-    st.title("🔄 블랙리스트 동기화")
+    st.title("🔄 Blacklist Sync")
 
-    st.info("Google Sheets에서 블랙리스트를 가져와 Supabase에 동기화합니다.")
+    st.info("Fetch blacklist from Google Sheets and sync to Supabase.")
 
-    # 현재 블랙리스트 수
+    # Current blacklist count
     current_count = len(db.list_blacklist(is_active=True))
-    st.metric("현재 Supabase 블랙리스트", f"{current_count}명")
+    st.metric("Current Supabase Blacklist", f"{current_count}")
 
-    # 동기화 버튼
-    if st.button("🔄 Google Sheets에서 동기화", type="primary"):
-        with st.spinner("동기화 중..."):
+    # Sync button
+    if st.button("🔄 Sync from Google Sheets", type="primary"):
+        with st.spinner("Syncing..."):
             try:
                 import requests as req
                 import pandas as pd
@@ -244,16 +244,16 @@ def show_blacklist_sync_page():
 
                 sheet_url = st.secrets.get("BLACKLIST_GOOGLE_SHEET_URL")
                 if not sheet_url:
-                    st.error("Google Sheets URL이 설정되지 않았습니다.")
+                    st.error("Google Sheets URL not configured.")
                     return
 
-                # Google Sheets에서 데이터 가져오기
+                # Fetch data from Google Sheets
                 response = req.get(sheet_url)
                 if response.status_code != 200:
-                    st.error(f"Google Sheets 접근 실패: {response.status_code}")
+                    st.error(f"Google Sheets access failed: {response.status_code}")
                     return
 
-                # CSV로 읽기
+                # Read as CSV
                 try:
                     df = pd.read_csv(StringIO(response.text), on_bad_lines="skip")
                 except Exception:
@@ -263,31 +263,30 @@ def show_blacklist_sync_page():
                         encoding="utf-8-sig",
                     )
 
-                # 사령관번호 컬럼 찾기
+                # Find commander_number column
                 commander_col = None
                 for col in df.columns:
                     col_lower = col.lower().strip()
                     if col_lower in [
                         "commander_number",
                         "commander_id",
-                        "사령관번호",
                         "igg_id",
                     ]:
                         commander_col = col
                         break
 
                 if not commander_col:
-                    st.error("사령관번호 컬럼을 찾을 수 없습니다.")
+                    st.error("Cannot find commander_number column.")
                     return
 
                 sheet_count = len(df)
-                st.write(f"Google Sheets에서 **{sheet_count}**개의 항목을 찾았습니다.")
+                st.write(f"Found **{sheet_count}** items from Google Sheets.")
 
-                # 기존 블랙리스트와 비교
+                # Compare with existing blacklist
                 existing = db.list_blacklist(is_active=True)
                 existing_ids = {item["commander_number"] for item in existing}
 
-                # 새 항목 업로드
+                # Upload new items
                 new_count = 0
                 skip_count = 0
                 for _, row in df.iterrows():
@@ -303,20 +302,20 @@ def show_blacklist_sync_page():
                     db.add_to_blacklist(
                         commander_number=commander_id,
                         nickname=str(row.get("nickname", "")).strip() or None,
-                        reason=f"Google Sheets 동기화 - {datetime.now().strftime('%Y-%m-%d')}",
+                        reason=f"Google Sheets sync - {datetime.now().strftime('%Y-%m-%d')}",
                     )
                     new_count += 1
 
                 st.success(
-                    f"✅ 동기화 완료!\n\n- 새 항목 추가: {new_count}개\n- 기존 항목 스킵: {skip_count}개\n- 총 블랙리스트: {current_count + new_count}개"
+                    f"✅ Sync complete!\n\n- New items added: {new_count}\n- Skipped existing: {skip_count}\n- Total blacklist: {current_count + new_count}"
                 )
 
             except Exception as e:
-                st.error(f"동기화 실패: {str(e)}")
+                st.error(f"Sync failed: {str(e)}")
 
 
 if __name__ == "__main__":
-    tab1, tab2 = st.tabs(["📤 Excel 업로드", "🔄 블랙리스트 동기화"])
+    tab1, tab2 = st.tabs(["📤 Excel Upload", "🔄 Blacklist Sync"])
     with tab1:
         show_excel_upload_page()
     with tab2:

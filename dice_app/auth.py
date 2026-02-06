@@ -38,7 +38,7 @@ def login(username: str, password: str) -> tuple[bool, str]:
     auth_config = config.get_config()["auth"]
     supabase_config = config.get_config()["supabase"]
 
-    # Supabase Auth 사용 여부 확인 (현재는 비활성화 권장)
+    # Check if Supabase Auth is enabled (recommended disabled for now)
     use_supabase_auth = supabase_config["use_auth"]
 
     if use_supabase_auth:
@@ -58,15 +58,15 @@ def login(username: str, password: str) -> tuple[bool, str]:
                 st.session_state[SESSION_KEYS["access_token"]] = access_token
                 return True, "Login successful!"
 
-        st.warning("Supabase Auth 실패, 자체 인증 사용...")
+        st.warning("Supabase Auth failed, using local auth...")
 
-    # 자체 인증 (bcrypt) - admins/users 테이블 기반
-    # 먼저 admins 테이블 확인 (master/admin)
+    # Local auth (bcrypt) - based on admins/users tables
+    # Check admins table first (master/admin)
     admin = db.get_admin_by_username(username)
 
-    # admins 테이블에 계정이 없으면 users 테이블도 시도
+    # If no admin account, try users table
     if not admin:
-        # users 테이블 확인 (일반 사용자)
+        # Check users table (regular users)
         user = db.get_user_by_commander_number(username)
 
         if not user:
@@ -88,7 +88,7 @@ def login(username: str, password: str) -> tuple[bool, str]:
 
         return True, "Login successful!"
 
-    # admins 계정 로그인
+    # Admin account login
     if admin:
         if not db.verify_password(password, admin["password_hash"]):
             return False, "Invalid password."
@@ -195,10 +195,10 @@ def get_current_user() -> Optional[Dict[str, Any]]:
     role = st.session_state.get(SESSION_KEYS["role"])
 
     if user_id:
-        # admin/master는 admins 테이블에서 조회
+        # admin/master are queried from admins table
         if role in ["master", "admin"]:
             return db.get_admin_by_id(user_id)
-        # 일반 사용자는 users 테이블에서 조회
+        # Regular users are queried from users table
         else:
             return db.get_user_by_id(user_id)
     return None
@@ -215,12 +215,12 @@ def get_current_role() -> Optional[str]:
 
 
 def is_master() -> bool:
-    """Check master权限."""
+    """Check master permissions."""
     return get_current_role() == "master"
 
 
 def is_admin() -> bool:
-    """Check admin权限."""
+    """Check admin permissions."""
     role = get_current_role()
     return role in ["master", "admin"]
 

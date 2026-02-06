@@ -688,9 +688,7 @@ def show():
                                             # Create new user
                                             user_data = {
                                                 "commander_number": commander_id,
-                                                "nickname": nickname
-                                                if nickname
-                                                else "",
+                                                "nickname": "",  # New user has no nickname yet
                                                 "password_hash": password_hash,
                                                 "plaintext_password": password,
                                                 "server": server,

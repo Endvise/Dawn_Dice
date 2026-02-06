@@ -195,7 +195,7 @@ def show():
 
                     st.markdown("---")
                     if st.form_submit_button(
-                        "➕ Add Participant", type="primary", use_container_width=True
+                        "➕ Add Participant", type="primary", width="stretch"
                     ):
                         if not new_commander_id or not new_nickname or not new_server:
                             st.error("Please fill in all required fields (*)")
@@ -424,7 +424,7 @@ def show():
                     if st.button(
                         "Add Selected to Reservations",
                         type="primary",
-                        use_container_width=True,
+                        width="stretch",
                     ):
                         if not selected_ids:
                             st.error("No participants selected.")
@@ -486,14 +486,14 @@ def show():
             if active_id in session_ids:
                 default_idx = session_ids.index(active_id)
 
-        import_session_id_id = st.selectbox(
+        import_session_id = st.selectbox(
             "Event/Session",
             options=session_ids,
             format_func=lambda x: session_options.get(x, x)
             if x != "Select Session..."
             else x,
             index=default_idx,
-            key="import_session_id_id",
+            key="import_session_id",
         )
 
         # File uploader
@@ -593,7 +593,7 @@ def show():
                     preview_df = pd.DataFrame(processed_data)
 
                     # Show all data
-                    st.dataframe(preview_df, use_container_width=True)
+                    st.dataframe(preview_df, width="stretch")
 
                     # Show debug info with expandable details
                     col_debug1, col_debug2, col_debug3 = st.columns(3)
@@ -604,13 +604,13 @@ def show():
                         if duplicate_ids:
                             with st.expander("중복 ID 목록"):
                                 dup_df = pd.DataFrame(duplicate_ids)
-                                st.dataframe(dup_df, use_container_width=True)
+                                st.dataframe(dup_df, width="stretch")
                     with col_debug3:
                         st.error(f"**유효하지 않은 ID**: {len(invalid_ids)}개")
                         if invalid_ids:
                             with st.expander("유효하지 않은 ID 목록"):
                                 invalid_df = pd.DataFrame(invalid_ids)
-                                st.dataframe(invalid_df, use_container_width=True)
+                                st.dataframe(invalid_df, width="stretch")
 
                     st.info(f"**최종 유효 항목**: {len(processed_data)}개")
 
@@ -618,116 +618,139 @@ def show():
                     if st.button(
                         "Import with Auto-generated Credentials",
                         type="primary",
-                        use_container_width=True,
+                        width="stretch",
                     ):
-                        if import_session_id == "Select Session...":
+                        # Get selected session from session state
+                        selected_session_id = st.session_state.get(
+                            "import_session_id", "Select Session..."
+                        )
+
+                        # DEBUG: Show actual session state
+                        st.write(
+                            f"[DEBUG] session_state keys: {list(st.session_state.keys())}"
+                        )
+                        st.write(f"[DEBUG] import_session_id: {selected_session_id}")
+                        if selected_session_id == "Select Session...":
                             st.error("Please select a session.")
                         elif not processed_data:
                             st.error("No valid data to import.")
                         else:
+                            # Get session name for this import
+                            import_session_name = session_options.get(
+                                selected_session_id, ""
+                            ).split(" (")[0]
+
                             with st.spinner("Importing..."):
                                 success_count = 0
                                 password_report = []
 
-                            for data in processed_data:
-                                try:
-                                    commander_id = data["commander_id"]
-                                    server = data["server"]
-                                    alliance = data["alliance"]
+                                for data in processed_data:
+                                    try:
+                                        commander_id = data["commander_id"]
+                                        server = data["server"]
+                                        alliance = data["alliance"]
 
-                                    # Generate password
-                                    password = generate_password()
-                                    password_hash = db.hash_password(password)
+                                        # Generate password
+                                        password = generate_password()
+                                        password_hash = db.hash_password(password)
 
-                                    # Check if user exists
-                                    existing_user = db.get_user_by_commander_number(
-                                        commander_id
-                                    )
-
-                                    if existing_user:
-                                        user_id = existing_user["id"]
-                                        action = "existing"
-                                        # Use existing user info
-                                        nickname = existing_user.get("nickname", "")
-                                        user_server = existing_user.get("server", "")
-                                        user_alliance = existing_user.get(
-                                            "alliance", ""
+                                        # Check if user exists
+                                        existing_user = db.get_user_by_commander_number(
+                                            commander_id
                                         )
-                                        # Store plaintext password if not exists
-                                        if not existing_user.get("plaintext_password"):
-                                            try:
-                                                db.update(
-                                                    "users",
-                                                    {"plaintext_password": password},
-                                                    {"id": f"eq.{user_id}"},
-                                                )
-                                            except:
-                                                pass
-                                    else:
-                                        # Create new user
-                                        user_data = {
-                                            "commander_number": commander_id,
-                                            "nickname": nickname,  # Use nickname from form
-                                            "password_hash": password_hash,
-                                            "plaintext_password": password,
-                                            "server": server,
-                                            "alliance": alliance,
-                                            "is_active": True,
+
+                                        if existing_user:
+                                            user_id = existing_user["id"]
+                                            action = "existing"
+                                            # Use existing user info
+                                            nickname = existing_user.get("nickname", "")
+                                            user_server = existing_user.get(
+                                                "server", ""
+                                            )
+                                            user_alliance = existing_user.get(
+                                                "alliance", ""
+                                            )
+                                            # Store plaintext password if not exists
+                                            if not existing_user.get(
+                                                "plaintext_password"
+                                            ):
+                                                try:
+                                                    db.update(
+                                                        "users",
+                                                        {
+                                                            "plaintext_password": password
+                                                        },
+                                                        {"id": f"eq.{user_id}"},
+                                                    )
+                                                except:
+                                                    pass
+                                        else:
+                                            # Create new user
+                                            user_data = {
+                                                "commander_number": commander_id,
+                                                "nickname": nickname
+                                                if nickname
+                                                else "",
+                                                "password_hash": password_hash,
+                                                "plaintext_password": password,
+                                                "server": server,
+                                                "alliance": alliance,
+                                                "is_active": True,
+                                            }
+                                            user_id = db.insert("users", user_data)
+                                            action = "new"
+                                            nickname = ""
+                                            user_server = server
+                                            user_alliance = alliance
+
+                                        # Add to participants
+                                        participant_data = {
+                                            "nickname": nickname if nickname else "",
+                                            "igg_id": commander_id,
+                                            "affiliation": user_server,
+                                            "alliance": user_alliance,
+                                            "event_name": import_session_name,
+                                            "completed": 0,
+                                            "confirmed": 0,
+                                            "wait_confirmed": 0,
+                                            "notes": f"Imported by {user.get('username', 'admin')}",
                                         }
-                                        user_id = db.insert("users", user_data)
-                                        action = "new"
-                                        nickname = ""
-                                        user_server = server
-                                        user_alliance = alliance
+                                        db.add_participant(participant_data)
 
-                                    # Add to participants - use existing user info
-                                    participant_data = {
-                                        "nickname": nickname,  # ✅ Existing user's nickname
-                                        "igg_id": commander_id,
-                                        "affiliation": user_server,  # ✅ Existing user's server
-                                        "alliance": user_alliance,  # ✅ Existing user's alliance
-                                        "event_name": import_session_id,
-                                        "completed": 0,
-                                        "confirmed": 0,
-                                        "wait_confirmed": 0,
-                                        "notes": f"Imported by {user.get('username', 'admin')}",
-                                    }
-                                    db.add_participant(participant_data)
+                                        success_count += 1
+                                        password_report.append(
+                                            {
+                                                "Commander ID": commander_id,
+                                                "Server": server,
+                                                "Alliance": alliance,
+                                                "Password": password,
+                                                "Status": action.capitalize(),
+                                            }
+                                        )
 
-                                    success_count += 1
-                                    password_report.append(
-                                        {
-                                            "Commander ID": commander_id,
-                                            "Server": server,
-                                            "Alliance": alliance,
-                                            "Password": password,
-                                            "Status": action.capitalize(),
-                                        }
+                                    except Exception as e:
+                                        st.warning(
+                                            f"Error importing {data.get('commander_id', 'unknown')}: {e}"
+                                        )
+                                        continue
+
+                                st.success(f"Imported {success_count} participants!")
+
+                                # Show password report
+                                if password_report:
+                                    st.markdown("### Credentials Report")
+                                    report_df = pd.DataFrame(password_report)
+                                    st.dataframe(report_df, width="stretch")
+
+                                    # Download report
+                                    csv = report_df.to_csv(index=False)
+                                    st.download_button(
+                                        "📥 Download Credentials CSV",
+                                        csv,
+                                        f"credentials_{import_session_name}.csv",
+                                        "text/csv",
+                                        width="stretch",
                                     )
-
-                                except Exception as e:
-                                    st.warning(
-                                        f"Error importing {data.get('commander_id', 'unknown')}: {e}"
-                                    )
-                                    continue
-
-                            st.success(f"Imported {success_count} participants!")
-
-                            # Show password report
-                            if password_report:
-                                st.markdown("### Credentials Report")
-                                report_df = pd.DataFrame(password_report)
-                                st.dataframe(report_df, use_container_width=True)
-
-                                # Download report
-                                csv = report_df.to_csv(index=False)
-                                st.download_button(
-                                    "📥 Download Credentials CSV",
-                                    csv,
-                                    f"credentials_{import_session_id}.csv",
-                                    "text/csv",
-                                    use_container_width=True,
-                                )
 
                             st.rerun()
 
@@ -823,7 +846,7 @@ def show():
                         if st.button(
                             "Reset Password",
                             key=f"reset_{user_id}",
-                            use_container_width=True,
+                            width="stretch",
                         ):
                             new_pw = generate_password()
                             new_hash = db.hash_password(new_pw)
@@ -856,7 +879,7 @@ def show():
                         pd.DataFrame(all_creds).to_csv(index=False),
                         "creds.csv",
                         "text/csv",
-                        use_container_width=True,
+                        width="stretch",
                     )
         else:
             st.info("No user accounts yet.")
@@ -903,7 +926,7 @@ def _show_edit_form(participant: dict, is_master: bool):
     col_btn1, col_btn2, col_btn3 = st.columns(3)
 
     with col_btn1:
-        if st.button("Save Changes", type="primary", use_container_width=True):
+        if st.button("Save Changes", type="primary", width="stretch"):
             try:
                 db.update_participant(
                     participant["id"],
@@ -925,13 +948,13 @@ def _show_edit_form(participant: dict, is_master: bool):
                 st.error(f"Error: {e}")
 
     with col_btn2:
-        if st.button("Cancel", use_container_width=True):
+        if st.button("Cancel", width="stretch"):
             st.session_state["edit_participant_id"] = None
             st.rerun()
 
     with col_btn3:
         if is_master:
-            if st.button("Delete", type="secondary", use_container_width=True):
+            if st.button("Delete", type="secondary", width="stretch"):
                 try:
                     db.delete_participant(participant["id"])
                     st.success("Deleted!")
@@ -988,7 +1011,7 @@ def _display_participants_list(
             col_act1, col_act2 = st.columns(2)
 
             with col_act1:
-                if st.button("Edit", key=f"edit_{p['id']}", use_container_width=True):
+                if st.button("Edit", key=f"edit_{p['id']}", width="stretch"):
                     st.session_state["edit_participant_id"] = p["id"]
                     st.rerun()
 
@@ -998,7 +1021,7 @@ def _display_participants_list(
                         "Delete",
                         key=f"delete_{p['id']}",
                         type="secondary",
-                        use_container_width=True,
+                        width="stretch",
                     ):
                         try:
                             db.delete_participant(p["id"])

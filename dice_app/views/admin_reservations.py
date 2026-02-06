@@ -123,13 +123,13 @@ def show():
 
                 with col1:
                     st.markdown(f"""
-                    **Nickname**: {res["nickname"]}
-                    **Commander ID**: {res["commander_id"]}
-                    **Server**: {res["server"]}
-                    **Alliance**: {res["alliance"] if res["alliance"] else "None"}
+                    **Nickname**: {res.get("nickname", "Unknown")}
+                    **Commander ID**: {res.get("commander_number", res.get("commander_id", "N/A"))}
+                    **Server**: {res.get("server", "N/A")}
+                    **Alliance**: {res.get("alliance", "None") or "None"}
                     **Applicant**: {res.get("user_nickname", res.get("user_role", "Unknown"))}
-                    **Applied At**: {res["created_at"]}
-                    **Status**: {res["status"]}
+                    **Applied At**: {res.get("created_at", "N/A")}
+                    **Status**: {res.get("status", "pending")}
                     """)
 
                     if res.get("approved_at"):

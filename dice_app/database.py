@@ -361,6 +361,16 @@ def delete_reservation(reservation_id: int) -> bool:
     return delete("reservations", {"id": f"eq.{reservation_id}"})
 
 
+def update_reservation_status(
+    reservation_id: str, status: str, approved_by: Optional[str] = None
+) -> bool:
+    """Update reservation status."""
+    data = {"status": status}
+    if approved_by:
+        data["approved_by"] = approved_by
+    return update("reservations", data, {"id": f"eq.{reservation_id}"})
+
+
 # ==================== Blacklist Operations ====================
 
 

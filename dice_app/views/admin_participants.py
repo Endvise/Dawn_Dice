@@ -598,25 +598,20 @@ def show():
 
                     st.info(f"**최종 유효 항목**: {len(processed_data)}개")
 
-                    with col_opt2:
-                        st.info(
-                            f"**Duplicate IDs Removed**: {len(df) - len(processed_data)}"
-                        )
-
-                # Import button
-                if st.button(
-                    "Import with Auto-generated Credentials",
-                    type="primary",
-                    use_container_width=True,
-                ):
-                    if import_session == "Select Session...":
-                        st.error("Please select a session.")
-                    elif not processed_data:
-                        st.error("No valid data to import.")
-                    else:
-                        with st.spinner("Importing..."):
-                            success_count = 0
-                            password_report = []
+                    # Import button
+                    if st.button(
+                        "Import with Auto-generated Credentials",
+                        type="primary",
+                        use_container_width=True,
+                    ):
+                        if import_session == "Select Session...":
+                            st.error("Please select a session.")
+                        elif not processed_data:
+                            st.error("No valid data to import.")
+                        else:
+                            with st.spinner("Importing..."):
+                                success_count = 0
+                                password_report = []
 
                             for data in processed_data:
                                 try:

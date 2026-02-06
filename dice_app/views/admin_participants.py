@@ -521,21 +521,23 @@ def show():
                 # Process data
                 processed_data = []
                 seen_commander_ids = set()
+                duplicate_count = 0
+                invalid_count = 0
 
                 for idx, row in df.iterrows():
                     # Extract commander ID (10 digits)
                     raw_id = str(row.get(commander_id_col, "")).strip()
-                    # Find 10-digit number
-                    import re
 
                     match = re.search(r"\d{10}", raw_id)
                     if match:
                         commander_id = match.group()
                     else:
+                        invalid_count += 1
                         continue  # Skip if no 10-digit ID
 
                     # Remove duplicates
                     if commander_id in seen_commander_ids:
+                        duplicate_count += 1
                         continue
                     seen_commander_ids.add(commander_id)
 
@@ -563,8 +565,18 @@ def show():
                 else:
                     preview_df = pd.DataFrame(processed_data)
                     st.dataframe(preview_df.head(20), use_container_width=True)
+
+                    # Show debug info
+                    col_debug1, col_debug2, col_debug3 = st.columns(3)
+                    with col_debug1:
+                        st.info(f"**총 행 수**: {len(df)}")
+                    with col_debug2:
+                        st.warning(f"**중복 제거됨**: {duplicate_count}")
+                    with col_debug3:
+                        st.error(f"**유효하지 않은 ID**: {invalid_count}")
+
                     st.info(
-                        f"**Total valid entries**: {len(processed_data)} (duplicates removed)"
+                        f"**최종 유효 항목**: {len(processed_data)}개 (중복 제거 후)"
                     )
 
                     st.markdown("---")

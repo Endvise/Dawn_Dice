@@ -39,7 +39,6 @@ def show():
         new_password = st.text_input(
             "New Password",
             type="password",
-            min_length=8,
             help="Minimum 8 characters",
             key="new_password",
         )

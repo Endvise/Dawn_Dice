@@ -109,9 +109,8 @@ def show():
                 "cancelled": "⚪",
             }
 
-            status_label = (
-                status_color.get(res["status"], "❓") + " " + res["status"].upper()
-            )
+            res_status = res.get("status") or "pending"
+            status_label = status_color.get(res_status, "❓") + " " + res_status.upper()
 
             # Blacklist indicator
             blacklist_warning = " ⛔ Blacklisted" if res.get("is_blacklisted") else ""

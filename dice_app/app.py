@@ -48,6 +48,7 @@ def main():
                         "📊 Dashboard",
                         "🎲 Session Management",
                         "🎯 Session Check-in",
+                        "🤖 Session Manager AI",
                         "📋 Reservation Management",
                         "👥 Participant Management",
                         "🚫 Blacklist Management",
@@ -72,6 +73,7 @@ def main():
                 "📊 Dashboard",
                 "🎲 Session Management",
                 "🎯 Session Check-in",
+                "🤖 Session Manager AI",
                 "📋 Reservation Management",
                 "👥 Participant Management",
                 "🚫 Blacklist Management",
@@ -83,11 +85,6 @@ def main():
             if auth.is_master():
                 st.markdown("---")
                 st.markdown("### 👑 Master Menu")
-
-                # AI Session Manager (Master only)
-                if st.button("🤖 Session Manager AI"):
-                    st.session_state["page"] = "session_manager"
-                    st.rerun()
 
                 if st.button("👤 Admin Account Management"):
                     st.session_state["page"] = "admin_management"
@@ -134,6 +131,10 @@ def main():
             import views.session_checkin
 
             views.session_checkin.show()
+        elif page == "🤖 Session Manager AI":
+            import views.session_manager
+
+            views.session_manager.show()
         elif page == "📋 Reservation Management":
             import views.admin_reservations
 
@@ -157,10 +158,6 @@ def main():
                 import views.master_admin
 
                 views.master_admin.show()
-            elif st.session_state.get("page") == "session_manager":
-                import views.session_manager
-
-                views.session_manager.show()
 
     else:
         # Pre-login handling

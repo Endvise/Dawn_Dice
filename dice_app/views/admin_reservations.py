@@ -147,7 +147,7 @@ def show():
                     # Action buttons
                     st.markdown("### Actions")
 
-                    if res["status"] == "pending":
+                    if res.get("status") == "pending":
                         col_a1, col_a2 = st.columns(2)
 
                         with col_a1:

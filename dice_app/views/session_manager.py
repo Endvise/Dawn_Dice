@@ -51,42 +51,40 @@ if groq_utils_path not in sys.path:
 SECURITY_PROMPT = """You are the Session Manager AI Assistant for DaWn Dice Party.
 
 ## Your Role
-You help administrators manage sessions, users, reservations, and check-ins. You are a READ-ONLY assistant by default, but CAN perform administrative tasks when users ask you to.
+You help administrators manage sessions, users, reservations, and check-ins.
 
-## Your Capabilities
+## Capabilities
 
-### Query (Read-only)
+### Query
 - List users, reservations, participants
 - Show statistics and counts
 - Search and filter data
-- Generate summary reports
 
-### Administrative Actions (When Asked)
+### Administrative Actions
 - Create new sessions
-- Update user information
-- Manage reservations
-- Any other administrative tasks
+- Any other admin tasks
 
 ## Response Rules
 1. Be concise and clear
 2. Use tables for lists
 3. Include numbers and statistics
-4. For data modifications, confirm with user first, then perform the action
-5. If you need to create/modify data, call the appropriate function
+4. For data modifications, confirm first, then execute
+5. Report action results clearly
 
-## Formatting
-- Use Korean (한국어) for Korean queries
-- Use English for English queries
+## Formatting (IMPORTANT)
+- Use Korean for Korean queries
 - Use tables for structured data
-- Keep responses concise
-- NO repetition of "현재 통계:" or similar headers
-- End responses naturally without redundant summaries
+- NEVER start responses with headers like "현재 통계:", "현재 상태:", etc.
+- NEVER end responses with redundant summaries
+- Just give the information directly
+- Keep responses short and useful
 
-## Important
-- You CAN perform administrative tasks when asked
-- Confirm before making changes, then execute
-- Always report the result of your actions
-- If an error occurs, explain clearly and suggest solutions"""
+## Examples
+Q: 현재 참여자 수?
+A: 현재 0명입니다. (활성 세션 없음)
+
+Q: 새 세션 생성해줘
+A: 새 세션을 생성할게요. 세션명을 입력해주세요."""
 
 
 # =============================================================================
@@ -349,16 +347,6 @@ def show():
 
         st.markdown("---")
 
-        # Admin quick actions
-        st.markdown("### 🛠️ 관리자 작업")
-
-        for label, query in ADMIN_ACTIONS:
-            if st.button(label, use_container_width=True):
-                st.session_state["pending_query"] = query
-                st.rerun()
-
-        st.markdown("---")
-
         # Clear conversation
         if st.button("🗑️ 대화 초기화", use_container_width=True):
             if "ai_messages" in st.session_state:
@@ -367,47 +355,64 @@ def show():
                 del st.session_state["pending_query"]
             st.rerun()
 
-    # Main area: Chat interface
-    st.markdown("### 💬 세션 관리에 대해 질문하세요")
+    # Main chat area
+    st.markdown("### 💬 질문하기")
 
     # Get pending query
     pending_query = st.session_state.pop("pending_query", None)
 
     # Chat input
     user_input = st.text_area(
-        "Your Question",
+        "",
         value=pending_query or "",
-        placeholder="""예시 질문:
-- 현재 세션의 재확인 완료한 사람 수를 보여줘
-- #095 서버 사용자들의 현황
-- 체크인율이 얼마야?
-- 예약 승인 대기 중인 사람들
-- 홍길동이라는 닉네임을 가진 사람 찾아줘
-""",
-        height=150,
+        placeholder="예: 현재 세션 참여자 수, 예약 현황, 새 세션 생성...",
+        height=100,
     )
 
-    col1, col2 = st.columns([1, 4])
+    col1, col2, col3 = st.columns([1, 1, 4])
     with col1:
         send_button = st.button("📤 전송", type="primary", use_container_width=True)
+    with col2:
+        if st.button("🗑️ 초기화", use_container_width=True):
+            st.session_state["ai_messages"] = []
+            st.session_state.pop("pending_query", None)
+            st.rerun()
 
-    # Display conversation history
-    st.markdown("---")
-    st.markdown("#### 💭 대화 기록")
-
+    # Initialize messages
     if "ai_messages" not in st.session_state:
         st.session_state["ai_messages"] = []
 
-    display_messages = [
+    # Display recent messages (last 5)
+    recent_messages = [
         m for m in st.session_state["ai_messages"] if m["role"] in ["user", "assistant"]
-    ]
+    ][-5:]
 
-    if not display_messages:
-        st.info("대화가 없습니다. 질문을 입력하거나 빠른 질문을 선택해주세요.")
+    # Full conversation history (collapsible)
+    with st.expander("📜 대화 기록 보기", expanded=False):
+        all_messages = [
+            m
+            for m in st.session_state["ai_messages"]
+            if m["role"] in ["user", "assistant"]
+        ]
+        if not all_messages:
+            st.info("대화가 없습니다.")
+        else:
+            for i, msg in enumerate(all_messages):
+                if msg["role"] == "user":
+                    st.markdown(f"**👤 질문:** {msg['content']}")
+                else:
+                    st.markdown(f"**🤖 응답:**\n{msg['content']}")
+                if i < len(all_messages) - 1:
+                    st.divider()
 
-    for msg in display_messages:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
+    # Show recent messages prominently
+    if recent_messages:
+        st.markdown("### 💬 최근 대화")
+        for msg in recent_messages:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+    else:
+        st.info("💬 질문을 입력하거나 빠른 질문을 선택해주세요.")
 
     # Handle user input
     if send_button and user_input:
@@ -465,31 +470,20 @@ def show():
                 {"role": "assistant", "content": content}
             )
 
-    # Help section
-    st.markdown("---")
-    st.markdown("""
-    ### 💡 사용 가이드
-    
-    **조회 가능한 정보:**
-    - 참여자 현황 및 통계
-    - 체크인율 조회
-    - 예약 상태 확인
-    - 사용자 검색 및 필터링
-    - 세션 목록 및 요약
-    
-    **관리자 작업:**
-    - 세션 생성 요청
-    - 데이터 조회 및 분석
-    - 통계 보고서 생성
-    
-    **예시 질문:**
-    - "현재 세션 참여자 수를 보여줘"
-    - "재확인 완료한 사람 목록"
-    - "#095 서버 사용자들 현황"
-    - "체크인율은 얼마야?"
-    - "예약 승인 대기 중인 사람들"
-    - "새 세션 생성해줘"
-    """)
+    # Help (collapsible)
+    with st.expander("💡 사용 가이드"):
+        st.markdown("""
+        **가능한 질문:**
+        - 현재 세션 참여자 수
+        - 체크인율 조회
+        - 예약 현황
+        - 사용자 검색
+        - 세션 생성 요청
+        
+        **예시:**
+        - "현재 참여자 수 보여줘"
+        - "새 세션 생성해줘"
+        """)
 
 
 # =============================================================================

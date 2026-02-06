@@ -17,65 +17,10 @@ def show():
         st.error("User information not found. Please log in again.")
         return
 
-    # Full-page mode - hide sidebar but show page navigation
-    st.markdown(
-        """
-    <style>
-    [data-testid="stSidebar"] {
-        display: none !important;
-    }
-    </style>
-    """,
-        unsafe_allow_html=True,
-    )
-
-    # Page navigation
-    pages = [
-        "🔐 Change Password",
-        "🏠 Home",
-        "📝 Make Reservation",
-        "📊 My Reservations",
-    ]
-
-    # Add admin pages if user is admin
-    if auth.is_admin():
-        admin_pages = [
-            "📊 Dashboard",
-            "🎲 Session Management",
-            "🎯 Session Check-in",
-            "🤖 Session Manager AI",
-            "📋 Reservation Management",
-            "👥 Participant Management",
-            "🚫 Blacklist Management",
-            "📢 Announcement Management",
-        ]
-        pages.extend(admin_pages)
-
-    # Page selector
-    selected_page = st.selectbox("Go to Page", pages, index=0, key="page_selector")
-
-    # Navigate to selected page
-    if selected_page != "🔐 Change Password":
-        st.session_state["show_change_password"] = False
-        page_map = {
-            "🏠 Home": "🏠 Home",
-            "📝 Make Reservation": "📝 Make Reservation",
-            "📊 My Reservations": "📊 My Reservations",
-            "📊 Dashboard": "📊 Dashboard",
-            "🎲 Session Management": "🎲 Session Management",
-            "🎯 Session Check-in": "🎯 Session Check-in",
-            "🤖 Session Manager AI": "🤖 Session Manager AI",
-            "📋 Reservation Management": "📋 Reservation Management",
-            "👥 Participant Management": "👥 Participant Management",
-            "🚫 Blacklist Management": "🚫 Blacklist Management",
-            "📢 Announcement Management": "📢 Announcement Management",
-        }
-        st.session_state["page"] = page_map.get(selected_page, "🏠 Home")
-        st.rerun()
-        return
-
     st.title("🔐 Change Password")
+
     st.markdown(f"**Account:** {user.get('commander_number', 'Unknown')}")
+
     st.markdown("---")
 
     # Password change form

@@ -464,44 +464,45 @@ def show():
         - **Deduplication**: If commander ID is duplicated, only 1 entry is kept
         """)
 
-        # Session selection - get from event_sessions table directly
+        # Get all sessions from database directly
         all_sessions = db.get_all_sessions()
         if not all_sessions:
             st.warning("No sessions found. Please create a session first.")
-        else:
-            # Create session options (id -> label)
-            session_options = {}
-            session_ids = ["Select Session..."]
-            for s in all_sessions:
-                sid = s.get("id")
-                label = f"{s.get('session_name', 'N/A')} ({s.get('session_date', 'N/A')})"
-                session_options[sid] = label
-                session_ids.append(sid)
+            st.stop()
 
-            # Find default index
-            default_idx = 0
-            if active_session:
-                active_id = active_session.get("id")
-                if active_id in session_ids:
-                    default_idx = session_ids.index(active_id)
+        # Create session options (id -> label)
+        session_options = {}
+        for s in all_sessions:
+            session_id = s.get("id")
+            label = f"{s.get('session_name', 'N/A')} ({s.get('session_date', 'N/A')})"
+            session_options[session_id] = label
 
-            # Session selection
-            import_session_id = st.selectbox(
-                "Event/Session",
-                options=session_ids,
-                format_func=lambda x: session_options.get(x, x) if x != "Select Session..." else x,
-                index=default_idx,
-                key="import_session_id",
-            )
+        session_ids = ["Select Session..."] + list(session_options.keys())
 
-            # File uploader
-            uploaded_file = st.file_uploader(
-                "Upload Excel File",
-                type=["xlsx", "xls"],
-                help="Required: Commander ID column (10 digits). Affiliation format: '#000 alliance_name'",
-            )
+        # Find default index
+        default_idx = if active_session:
+ 0
+                   active_id = active_session.get("id")
+            if active_id in session_ids:
+                default_idx = session_ids.index(active_id)
 
-            if uploaded_file:
+        # Session selection
+        import_session_id = st.selectbox(
+            "Event/Session",
+            options=session_ids,
+            format_func=lambda x: session_options.get(x, x) if x != "Select Session..." else x,
+            index=default_idx,
+            key="import_session_id",
+        )
+
+        # File uploader
+        uploaded_file = st.file_uploader(
+            "Upload Excel File",
+            type=["xlsx", "xls"],
+            help="Required: Commander ID column (10 digits). Affiliation format: '#000 alliance_name'",
+        )
+
+        if uploaded_file:
             try:
                 df = pd.read_excel(BytesIO(uploaded_file.read()), sheet_name=0)
 

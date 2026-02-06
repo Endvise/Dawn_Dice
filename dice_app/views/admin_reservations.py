@@ -216,6 +216,8 @@ def show():
                                     st.rerun()
                                 except Exception as e:
                                     st.error(f"Error deleting: {e}")
+                            else:
+                                st.warning("Please confirm to delete.")
 
                     # Add to blacklist button
                     if not res.get("is_blacklisted"):

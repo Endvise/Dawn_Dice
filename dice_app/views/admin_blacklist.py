@@ -395,6 +395,7 @@ def show():
                                     st.session_state["pending_blacklist_entries"] = (
                                         entries
                                     )
+                                    st.session_state["default_reason"] = default_reason
                                     st.session_state["show_preview"] = True
 
                                     st.success(
@@ -408,11 +409,9 @@ def show():
         with col2:
             st.markdown("#### Preview")
 
-            # Initialize default reason with fallback
-            _default_reason = (
-                default_reason
-                if "default_reason" in dir() or "default_reason" in locals()
-                else "Bulk upload from file"
+            # Get default_reason from session state or use fallback
+            _default_reason = st.session_state.get(
+                "default_reason", "Bulk upload from file"
             )
 
             if "show_preview" in st.session_state and st.session_state.get(
@@ -478,12 +477,9 @@ def show():
                                     continue
 
                             try:
-                                # Safely get default_reason
-                                _dr = (
-                                    default_reason
-                                    if "default_reason" in locals()
-                                    or "default_reason" in globals()
-                                    else "Bulk upload from file"
+                                # Safely get default_reason from session state
+                                _dr = st.session_state.get(
+                                    "default_reason", "Bulk upload from file"
                                 )
                                 db.add_to_blacklist(
                                     commander_id=entry["commander_id"],

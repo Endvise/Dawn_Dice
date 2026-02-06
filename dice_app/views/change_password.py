@@ -17,28 +17,30 @@ def show():
         st.error("User information not found. Please log in again.")
         return
 
-    # Full-page mode (hide sidebar)
+    # Back button
+    col_back = st.columns([1, 8])[0]
+    with col_back:
+        if st.button("← Back", use_container_width=True):
+            st.session_state["show_change_password"] = False
+            # Clear CSS cache
+            if "css_cleared" in st.session_state:
+                del st.session_state["css_cleared"]
+            st.rerun()
+
+    # Hide sidebar CSS
     st.markdown(
         """
     <style>
     [data-testid="stSidebar"] {
-        display: none;
+        display: none !important;
     }
     .stRadio {
-        display: none;
+        display: none !important;
     }
     </style>
     """,
         unsafe_allow_html=True,
     )
-
-    # Back button
-    col_back = st.columns([1, 8])[0]
-    with col_back:
-        if st.button("← Back"):
-            if "show_change_password" in st.session_state:
-                del st.session_state["show_change_password"]
-            st.rerun()
 
     st.title("🔐 Change Password")
     st.markdown("---")

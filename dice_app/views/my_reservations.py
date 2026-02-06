@@ -31,13 +31,13 @@ def show():
 
     # Show each reservation with status
     for res in my_reservations:
-        # Status display
-        status = res["status"]
+        # Status display - handle missing status field
+        status = res.get(
+            "status", "approved"
+        )  # Default to approved for simple reservations
+        waitlist_order = res.get("waitlist_order", 0)
 
-        if status == "approved":
-            status_icon = "✅"
-            status_text = "Approved"
-        elif status == "pending":
+        if status == "pending":
             status_icon = "⏳"
             status_text = "Pending"
         elif status == "rejected":
@@ -48,11 +48,10 @@ def show():
             status_text = "Cancelled"
         elif status == "waitlisted":
             status_icon = "🔵"
-            waitlist_order = res.get("waitlist_order", 0)
             status_text = f"Waitlisted (Order: {waitlist_order})"
         else:
-            status_icon = "⚪"
-            status_text = status
+            status_icon = "✅"
+            status_text = "Confirmed"
 
         # Date
         created_at = res["created_at"][:10] if res.get("created_at") else ""

@@ -83,6 +83,12 @@ def main():
             if auth.is_master():
                 st.markdown("---")
                 st.markdown("### 👑 Master Menu")
+
+                # AI Session Manager (Master only)
+                if st.button("🤖 Session Manager AI"):
+                    st.session_state["page"] = "session_manager"
+                    st.rerun()
+
                 if st.button("👤 Admin Account Management"):
                     st.session_state["page"] = "admin_management"
                     st.rerun()
@@ -151,6 +157,10 @@ def main():
                 import views.master_admin
 
                 views.master_admin.show()
+            elif st.session_state.get("page") == "session_manager":
+                import views.session_manager
+
+                views.session_manager.show()
 
     else:
         # Pre-login handling

@@ -197,8 +197,8 @@ def show():
                             except Exception as e:
                                 st.error(f"Error cancelling: {e}")
 
-                    # Delete button (master only)
-                    if is_master:
+                    # Delete button (admin/master only)
+                    if auth.is_admin():
                         if st.button(
                             "Delete",
                             key=f"delete_{res['id']}",

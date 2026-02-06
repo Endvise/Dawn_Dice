@@ -17,24 +17,11 @@ def show():
         st.error("User information not found. Please log in again.")
         return
 
-    # Back button
-    col_back = st.columns([1, 8])[0]
-    with col_back:
-        if st.button("← Back", use_container_width=True):
-            st.session_state["show_change_password"] = False
-            # Clear CSS cache
-            if "css_cleared" in st.session_state:
-                del st.session_state["css_cleared"]
-            st.rerun()
-
-    # Hide sidebar CSS
+    # Full-page mode - hide sidebar
     st.markdown(
         """
     <style>
     [data-testid="stSidebar"] {
-        display: none !important;
-    }
-    .stRadio {
         display: none !important;
     }
     </style>
@@ -43,9 +30,10 @@ def show():
     )
 
     st.title("🔐 Change Password")
-    st.markdown("---")
 
     st.markdown(f"**Account:** {user.get('commander_number', 'Unknown')}")
+
+    st.markdown("---")
 
     # Password change form
     with st.form("change_password_form"):
@@ -62,12 +50,19 @@ def show():
             "Confirm New Password", type="password", key="confirm_password"
         )
 
-        submitted = st.form_submit_button(
-            "Change Password", use_container_width=True, type="primary"
-        )
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            submitted = st.form_submit_button(
+                "Change Password", use_container_width=True, type="primary"
+            )
+        with col2:
+            back = st.form_submit_button("← Back", use_container_width=True)
+
+        if back:
+            st.session_state["show_change_password"] = False
+            st.rerun()
 
         if submitted:
-            # Validation
             if not old_password:
                 st.error("Please enter your current password.")
             elif not new_password:
@@ -79,22 +74,20 @@ def show():
             elif old_password == new_password:
                 st.error("New password must be different from current password.")
             else:
-                # Attempt to change password
                 success, message = auth.change_user_password(
                     user["id"], old_password, new_password
                 )
 
                 if success:
-                    st.success(f"✅ {message}")
+                    st.success(f"Password changed successfully!")
                     st.info("Please log in again with your new password.")
                     if st.button("Logout"):
                         auth.logout()
                 else:
-                    st.error(f"❌ {message}")
+                    st.error(f"Error: {message}")
 
     st.markdown("---")
 
-    # Password requirements
     st.markdown("""
     **Password Requirements:**
     - Minimum 8 characters

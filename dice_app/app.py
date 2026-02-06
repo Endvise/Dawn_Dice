@@ -47,6 +47,7 @@ def main():
                         "📊 My Reservations",
                         "📊 Dashboard",
                         "🎲 Session Management",
+                        "🎯 Session Check-in",
                         "📋 Reservation Management",
                         "👥 Participant Management",
                         "🚫 Blacklist Management",
@@ -70,6 +71,7 @@ def main():
             if auth.is_admin() and page in [
                 "📊 Dashboard",
                 "🎲 Session Management",
+                "🎯 Session Check-in",
                 "📋 Reservation Management",
                 "👥 Participant Management",
                 "🚫 Blacklist Management",
@@ -122,6 +124,10 @@ def main():
             import views.event_sessions
 
             views.event_sessions.show()
+        elif page == "🎯 Session Check-in":
+            import views.session_checkin
+
+            views.session_checkin.show()
         elif page == "📋 Reservation Management":
             import views.admin_reservations
 

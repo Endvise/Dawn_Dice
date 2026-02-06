@@ -152,6 +152,11 @@ def show():
 
     st.markdown("---")
 
+    # Session Check-in Status Section
+    render_session_checkin_status()
+
+    st.markdown("---")
+
     tab1, tab2, tab3, tab4, tab5 = st.tabs(
         ["Users", "Reservations", "Participants", "Blacklist", "Announcements"]
     )
@@ -396,3 +401,63 @@ def show():
     - Masters can reset user failure counts
     - Check details in each tab
     """)
+
+
+def render_session_checkin_status():
+    """Render session check-in status section in dashboard."""
+    # Get active session
+    active_session = db.get_active_session()
+    if not active_session:
+        st.markdown("### 🎯 Session Check-in Status")
+        st.info("No active session. Create a session first.")
+        return
+
+    session_id = str(active_session["id"])
+    session_name = active_session.get(
+        "session_name", f"Session {active_session.get('session_number', '?')}"
+    )
+
+    st.markdown(f"### 🎯 Session Check-in Status - {session_name}")
+
+    # Get check-in stats
+    stats = db.get_session_check_stats(session_id)
+
+    if stats["total"] == 0:
+        st.info("No participants in this session yet.")
+        return
+
+    # Display metrics in a compact way
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric("Total", stats["total"])
+
+    with col2:
+        st.metric(
+            "Re-confirmed",
+            f"{stats['re_confirmed']} ({stats['re_confirmed_percent']}%)",
+            delta_color="normal",
+        )
+
+    with col3:
+        st.metric(
+            "Alliance Entry",
+            f"{stats['alliance_entry']} ({stats['alliance_entry_percent']}%)",
+            delta_color="normal",
+        )
+
+    with col4:
+        st.metric(
+            "Dice Purchased",
+            f"{stats['dice_purchased']} ({stats['dice_purchased_percent']}%)",
+            delta_color="normal",
+        )
+
+    # Progress bar
+    st.markdown("**Re-confirmed Progress**")
+    st.progress(stats["re_confirmed_percent"] / 100)
+
+    # Link to check-in management
+    if st.button("📋 Open Check-in Management", use_container_width=True):
+        st.session_state["page"] = "🎯 Session Check-in"
+        st.rerun()

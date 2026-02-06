@@ -814,3 +814,257 @@ def supabase_verify_session(access_token: str) -> tuple[bool, Optional[str]]:
         return False, None
     except Exception:
         return False, None
+
+
+# ==================== Session Participant Check-in Operations ====================
+# Note: These functions use the existing 'participants' table with event_name column
+# to associate participants with sessions. No new table needed.
+
+
+def get_session_participants_check(session_id: str) -> List[Dict[str, Any]]:
+    """Get all participants for a session with check status."""
+    session = fetch_one("event_sessions", {"id": f"eq.{session_id}"})
+    if not session:
+        return []
+    event_name = session.get("session_name", "")
+    return fetch_all("participants", {"event_name": f"eq.{event_name}"})
+
+
+def add_participant_to_session(
+    session_id: str,
+    commander_id: str,
+    nickname: Optional[str] = None,
+    server: Optional[str] = None,
+    alliance: Optional[str] = None,
+    user_id: Optional[str] = None,
+) -> int:
+    """Add a participant to a session."""
+    session = fetch_one("event_sessions", {"id": f"eq.{session_id}"})
+    if not session:
+        return 0
+    event_name = session.get("session_name", "")
+
+    # Check if already exists
+    existing = fetch_one(
+        "participants",
+        {"igg_id": f"eq.{commander_id}", "event_name": f"eq.{event_name}"},
+    )
+    if existing:
+        return existing.get("id", 0)
+
+    data = {
+        "igg_id": commander_id,
+        "nickname": nickname,
+        "affiliation": server,
+        "alliance": alliance,
+        "event_name": event_name,
+        "completed": False,
+        "confirmed": False,
+        "wait_confirmed": False,
+        "re_confirmed": False,
+        "alliance_entry": False,
+        "dice_purchased": False,
+    }
+    return insert("participants", data)
+
+
+def update_participant_check(
+    session_id: str,
+    commander_id: str,
+    check_type: str,  # 're_confirmed', 'alliance_entry', 'dice_purchased'
+    checked_by: str,
+    value: Optional[bool] = None,
+) -> tuple[bool, bool]:
+    """
+    Update participant check status.
+    Returns: (success, new_state) - 성공여부와 새로운 상태 반환
+    If value is None, toggles the current state.
+    """
+    session = fetch_one("event_sessions", {"id": f"eq.{session_id}"})
+    if not session:
+        return False, False
+    event_name = session.get("session_name", "")
+
+    participant = fetch_one(
+        "participants",
+        {"igg_id": f"eq.{commander_id}", "event_name": f"eq.{event_name}"},
+    )
+    if not participant:
+        return False, False
+
+    if check_type not in ["re_confirmed", "alliance_entry", "dice_purchased"]:
+        return False, False
+
+    # Toggle if value not specified
+    if value is None:
+        current_value = participant.get(check_type, False)
+        value = not current_value
+
+    now = datetime.now().isoformat()
+    success = update(
+        "participants",
+        {check_type: value, "checked_by": checked_by, "checked_at": now},
+        {"id": f"eq.{participant['id']}"},
+    )
+
+    return success, value
+
+
+def toggle_session_check(
+    session_id: str,
+    commander_id: str,
+    check_type: str,
+    checked_by: str,
+) -> tuple[bool, bool]:
+    """Toggle check status (check ↔ uncheck)."""
+    return update_participant_check(session_id, commander_id, check_type, checked_by)
+
+
+def set_session_check(
+    session_id: str,
+    commander_id: str,
+    check_type: str,
+    value: bool,
+    checked_by: str,
+) -> bool:
+    """Set check status explicitly (check or uncheck)."""
+    success, _ = update_participant_check(
+        session_id, commander_id, check_type, checked_by, value
+    )
+    return success
+
+
+def remove_participant_from_session(session_id: str, commander_id: str) -> bool:
+    """Remove a participant from a session (by marking inactive or deleting)."""
+    session = fetch_one("event_sessions", {"id": f"eq.{session_id}"})
+    if not session:
+        return False
+    event_name = session.get("session_name", "")
+    return delete(
+        "participants",
+        {"igg_id": f"eq.{commander_id}", "event_name": f"eq.{event_name}"},
+    )
+
+
+def get_session_check_stats(session_id: str) -> Dict[str, Any]:
+    """Get check-in statistics for a session."""
+    session = fetch_one("event_sessions", {"id": f"eq.{session_id}"})
+    if not session:
+        return {
+            "total": 0,
+            "re_confirmed": 0,
+            "alliance_entry": 0,
+            "dice_purchased": 0,
+            "pending": 0,
+            "re_confirmed_percent": 0.0,
+            "alliance_entry_percent": 0.0,
+            "dice_purchased_percent": 0.0,
+        }
+    event_name = session.get("session_name", "")
+    participants = fetch_all("participants", {"event_name": f"eq.{event_name}"})
+
+    if not participants:
+        return {
+            "total": 0,
+            "re_confirmed": 0,
+            "alliance_entry": 0,
+            "dice_purchased": 0,
+            "pending": 0,
+            "re_confirmed_percent": 0.0,
+            "alliance_entry_percent": 0.0,
+            "dice_purchased_percent": 0.0,
+        }
+
+    total = len(participants)
+    re_confirmed = sum(1 for p in participants if p.get("re_confirmed", False))
+    alliance_entry = sum(1 for p in participants if p.get("alliance_entry", False))
+    dice_purchased = sum(1 for p in participants if p.get("dice_purchased", False))
+    pending = sum(
+        1
+        for p in participants
+        if not (
+            p.get("re_confirmed", False)
+            and p.get("alliance_entry", False)
+            and p.get("dice_purchased", False)
+        )
+    )
+
+    return {
+        "total": total,
+        "re_confirmed": re_confirmed,
+        "alliance_entry": alliance_entry,
+        "dice_purchased": dice_purchased,
+        "pending": pending,
+        "re_confirmed_percent": round((re_confirmed / total) * 100, 1)
+        if total > 0
+        else 0.0,
+        "alliance_entry_percent": round((alliance_entry / total) * 100, 1)
+        if total > 0
+        else 0.0,
+        "dice_purchased_percent": round((dice_purchased / total) * 100, 1)
+        if total > 0
+        else 0.0,
+    }
+
+
+def get_participant_by_commander(
+    session_id: str, commander_id: str
+) -> Optional[Dict[str, Any]]:
+    """Get participant by commander ID in a session."""
+    session = fetch_one("event_sessions", {"id": f"eq.{session_id}"})
+    if not session:
+        return None
+    event_name = session.get("session_name", "")
+    return fetch_one(
+        "participants",
+        {"igg_id": f"eq.{commander_id}", "event_name": f"eq.{event_name}"},
+    )
+
+
+def bulk_import_session_participants(
+    session_id: str,
+    participants_list: List[Dict[str, Any]],
+    imported_by: str,
+) -> tuple[int, int]:
+    """
+    Bulk import participants to a session.
+    Returns: (success_count, failure_count)
+    """
+    session = fetch_one("event_sessions", {"id": f"eq.{session_id}"})
+    if not session:
+        return 0, len(participants_list)
+    event_name = session.get("session_name", "")
+
+    success_count = 0
+    failure_count = 0
+
+    for p in participants_list:
+        try:
+            # Check if already exists
+            existing = fetch_one(
+                "participants",
+                {
+                    "igg_id": f"eq.{p.get('igg_id', p.get('commander_id', ''))}",
+                    "event_name": f"eq.{event_name}",
+                },
+            )
+            if existing:
+                success_count += 1
+                continue
+
+            result = add_participant_to_session(
+                session_id=session_id,
+                commander_id=p.get("igg_id", p.get("commander_id", "")),
+                nickname=p.get("nickname"),
+                server=p.get("affiliation", p.get("server")),
+                alliance=p.get("alliance"),
+                user_id=p.get("user_id"),
+            )
+            if result > 0:
+                success_count += 1
+            else:
+                failure_count += 1
+        except Exception:
+            failure_count += 1
+
+    return success_count, failure_count

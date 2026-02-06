@@ -6,7 +6,7 @@ Utility Module
 """
 
 import streamlit as st
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, List
 
 
@@ -64,13 +64,13 @@ def parse_utc_time(dt_str: str) -> Optional[datetime]:
 
 
 def format_timezone_time(
-    dt: datetime, timezone_str: str, format_str: str = "%Y-%m-%d %H:%M"
+    dt: datetime, tz_name: str, format_str: str = "%Y-%m-%d %H:%M"
 ) -> str:
     """Convert UTC datetime to specified timezone and format."""
     if dt is None:
         return "N/A"
     try:
-        offset_hours = get_timezone_offset(timezone_str)
+        offset_hours = get_timezone_offset(tz_name)
         # Create timezone with offset
         tz = timezone(timedelta(hours=offset_hours))
         local_dt = dt.astimezone(tz)
@@ -80,17 +80,17 @@ def format_timezone_time(
 
 
 def format_utc_to_timezone(
-    dt_str: str, timezone_str: str, format_str: str = "%Y-%m-%d %H:%M"
+    dt_str: str, tz_name: str, format_str: str = "%Y-%m-%d %H:%M"
 ) -> str:
     """Convert UTC datetime string to specified timezone."""
     dt = parse_utc_time(dt_str)
-    return format_timezone_time(dt, timezone_str, format_str) if dt else "N/A"
+    return format_timezone_time(dt, tz_name, format_str) if dt else "N/A"
 
 
-def get_timezone_display_name(timezone_str: str) -> str:
+def get_timezone_display_name(tz_name: str) -> str:
     """Get display name for a timezone."""
     for name, tz, offset in TIMEZONE_OPTIONS:
-        if tz == timezone_str:
+        if tz == tz_name:
             return name.split(" ")[0] if " " in name else name
     return "🌍"
 

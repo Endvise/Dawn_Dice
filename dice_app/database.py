@@ -468,9 +468,12 @@ def remove_from_blacklist(commander_number: str) -> bool:
     return delete("blacklist", {"commander_number": f"eq.{commander_number}"})
 
 
-def list_blacklist() -> List[Dict[str, Any]]:
-    """List blacklist."""
-    return fetch_all("blacklist")
+def list_blacklist(is_active: Optional[bool] = None) -> List[Dict[str, Any]]:
+    """List blacklist entries."""
+    if is_active is None:
+        return fetch_all("blacklist")
+    else:
+        return fetch_all("blacklist", {"is_active": f"eq.{1 if is_active else 0}"})
 
 
 # ==================== Server Operations ====================

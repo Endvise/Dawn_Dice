@@ -640,11 +640,6 @@ def show():
                             "import_session_id", "Select Session..."
                         )
 
-                        # DEBUG: Show actual session state
-                        st.write(
-                            f"[DEBUG] session_state keys: {list(st.session_state.keys())}"
-                        )
-                        st.write(f"[DEBUG] import_session_id: {selected_session_id}")
                         if selected_session_id == "Select Session...":
                             st.error("Please select a session.")
                         elif not processed_data:

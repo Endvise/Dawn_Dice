@@ -13,6 +13,7 @@
 | v07 | 2026-02-04 | Sisyphus | **스키마 일치 작업 완료** - users/admins/reservations/blacklist/announcements 테이블에 맞게 코드 수정 |
 | v08 | 2026-02-04 | Sisyphus | 영어 UI 적용 (home.py), None 처리 추가 |
 | v09 | 2026-02-05 | Sisyphus | **비밀번호 변경 기능 추가** - 사용자/관리자 기존 비밀번호 인증 후 새 비밀번호로 변경 가능 |
+| v10 | 2026-02-06 | Sisyphus | **Import Excel 버그 수정** - Nickname Column 추가, 변수 scope 수정, None 처리 |
 
 ---
 
@@ -1239,3 +1240,106 @@ if created_by:
 - 세션 생성자 이름이 올바르게 표시됨
 - 관리자와 일반 사용자 모두 지원
 
+
+---
+
+# 21. Import Excel 버그 수정 (2026-02-06)
+
+## 21.1 수정 목록
+
+| 날짜 | 커밋 | 수정 내용 | 비고 |
+|------|------|----------|------|
+| 2026-02-06 | 240fe79 | `participant.get("number")` None 처리 | `int(None)` 에러 방지 |
+| 2026-02-06 | 3555d9c | DEBUG 코드 제거 | |
+| 2026-02-06 | cea0f9b | Nickname Column 추가 | Column Mapping 3개로 확장 |
+| 2026-02-06 | e27d330 | nickname 변수 scope 수정 | 기존 사용자 없을 때 undefined 문제 |
+| 2026-02-06 | bdd37db | session_state 처리 수정 | `st.session_state.get()` 사용 |
+
+## 21.2 상세 내용
+
+### 21.2.1 Nickname Column 추가 (cea0f9b)
+
+**문제:** Excel에서 닉네임 열을 선택할 수 없어서 정보 손실
+
+**수정 전:**
+```
+Column Mapping: 2개 (Commander ID, Affiliation)
+```
+
+**수정 후:**
+```
+Column Mapping: 3개 (Commander ID, Nickname, Affiliation)
+```
+
+**사용 방법:**
+1. Commander ID Column: `IGG아이디` 선택
+2. **Nickname Column**: 닉네임 열 선택 (새로 추가)
+3. Affiliation Column: `소속` 선택
+
+### 21.2.2 nickname 변수 scope 수정 (e27d330)
+
+**문제:** 기존 사용자가 없을 때 `nickname` 변수가 정의되지 않음
+
+**에러 메시지:**
+```
+cannot access local variable 'nickname' where it is not associated with a value
+```
+
+**수정:**
+```python
+# 수정 전
+else:
+    user_data = {
+        "nickname": nickname if nickname else "",  # nickname 미정의
+    }
+    ...
+    nickname = ""  # 정의가 나중에!
+
+# 수정 후
+else:
+    user_data = {
+        "nickname": data.get("nickname", ""),  # data에서 직접 가져옴
+    }
+```
+
+### 21.2.3 participant.number None 처리 (240fe79)
+
+**문제:** Participants 편집 시 `number` 필드가 None이면 에러
+
+**에러:**
+```
+TypeError: int(None) - cannot convert None to int
+```
+
+**수정:**
+```python
+# 수정 전
+value=int(participant.get("number", 1))
+
+# 수정 후
+value=int(participant.get("number") or 1)
+```
+
+### 21.2.4 session_state 처리 수정 (bdd37db)
+
+**문제:** `st.selectbox`의 `key`로 저장된 값을 직접 참조하여 에러
+
+**수정:**
+```python
+# 수정 전
+if import_session_id == "Select Session...":
+
+# 수정 후
+selected_session_id = st.session_state.get("import_session_id", "Select Session...")
+if selected_session_id == "Select Session...":
+```
+
+## 21.3 사용된 GitHub 계정
+
+| 작업 | 계정 |
+|------|------|
+| 커밋/푸시 | `bland7754` |
+
+---
+
+*DEVELOPMENT_LOG.md - DaWn Dice Party 개발 이력*

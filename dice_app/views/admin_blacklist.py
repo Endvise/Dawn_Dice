@@ -4,6 +4,7 @@ Admin Blacklist Management Page
 """
 
 import streamlit as st
+import pandas as pd
 import database as db
 import auth
 

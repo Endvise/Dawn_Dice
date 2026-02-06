@@ -14,7 +14,7 @@ Access: admin, master only
 """
 
 import streamlit as st
-from .. import auth
+from ..auth import is_authenticated, is_admin
 from .. import database as db
 from ..groq_utils.groq_client import (
     call_groq_api,
@@ -99,10 +99,10 @@ Remember: You are a READ-ONLY assistant. All data modifications must be done thr
 
 def check_access_level() -> bool:
     """Check if user is admin or master"""
-    if not auth.is_authenticated():
+    if not is_authenticated():
         st.error("먼저 로그인해주세요.")
         return False
-    if not auth.is_admin():
+    if not is_admin():
         st.error("관리자 권한이 필요합니다.")
         return False
     return True

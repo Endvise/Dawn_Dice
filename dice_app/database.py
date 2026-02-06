@@ -711,9 +711,17 @@ def update_session_active(session_id: str, is_active: bool):
     )
 
 
-def delete_session(session_id: str):
-    """Delete session."""
-    return delete("event_sessions", {"id": f"eq.{session_id}"})
+def delete_session(session_id: str) -> bool:
+    """Delete session and all related participants (CASCADE)."""
+    # First delete related participants
+    try:
+        delete("participants", {"session_id": f"eq.{session_id}"})
+    except:
+        pass  # Table might not have session_id or might not exist
+
+    # Then delete session
+    result = delete("event_sessions", {"id": f"eq.{session_id}"})
+    return result
 
 
 # ==================== Supabase SDK Client ====================

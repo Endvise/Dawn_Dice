@@ -325,6 +325,11 @@ def show_user_info():
         )
         st.sidebar.text(f"Role: {role_label}")
 
+        # Show password if available
+        plaintext_password = user.get("plaintext_password")
+        if plaintext_password:
+            st.sidebar.text(f"Password: {plaintext_password}")
+
         if st.sidebar.button("Logout"):
             logout()
 

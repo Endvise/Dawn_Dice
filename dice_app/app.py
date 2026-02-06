@@ -63,7 +63,6 @@ def main():
                         "🏠 Home",
                         "📝 Make Reservation",
                         "📊 My Reservations",
-                        "🔐 Change Password",
                     ],
                 )
 
@@ -90,74 +89,82 @@ def main():
                     st.session_state["page"] = "admin_management"
                     st.rerun()
 
-            # User info
-            auth.show_user_info()
+        # User info
+        auth.show_user_info()
 
-            # Timezone selector
-            st.markdown("---")
-            utils.show_timezone_selector()
+        # Timezone selector
+        st.markdown("---")
+        utils.show_timezone_selector()
+
+        # Change Password button (at bottom)
+        st.markdown("---")
+        if st.button("🔐 Change Password", use_container_width=True):
+            st.session_state["show_change_password"] = True
+            st.rerun()
         else:
             st.markdown("### 📋 Menu")
             page = "Login"
 
     # Main content area
     if auth.is_authenticated():
-        # Page routing
-        if page == "🏠 Home":
-            import views.home
-
-            views.home.show()
-        elif page == "📝 Make Reservation":
-            import views.reservation
-
-            views.reservation.show()
-        elif page == "📊 My Reservations":
-            import views.my_reservations
-
-            views.my_reservations.show()
-        elif page == "🔐 Change Password":
+        # Check if change password page is active (full-page mode)
+        if st.session_state.get("show_change_password"):
             import views.change_password
 
             views.change_password.show()
-        elif page == "📊 Dashboard":
-            import views.admin_dashboard
+        else:
+            # Page routing
+            if page == "🏠 Home":
+                import views.home
 
-            views.admin_dashboard.show()
-        elif page == "🎲 Session Management":
-            import views.event_sessions
+                views.home.show()
+            elif page == "📝 Make Reservation":
+                import views.reservation
 
-            views.event_sessions.show()
-        elif page == "🎯 Session Check-in":
-            import views.session_checkin
+                views.reservation.show()
+            elif page == "📊 My Reservations":
+                import views.my_reservations
 
-            views.session_checkin.show()
-        elif page == "🤖 Session Manager AI":
-            import views.session_manager
+                views.my_reservations.show()
+            elif page == "📊 Dashboard":
+                import views.admin_dashboard
 
-            views.session_manager.show()
-        elif page == "📋 Reservation Management":
-            import views.admin_reservations
+                views.admin_dashboard.show()
+            elif page == "🎲 Session Management":
+                import views.event_sessions
 
-            views.admin_reservations.show()
-        elif page == "👥 Participant Management":
-            import views.admin_participants
+                views.event_sessions.show()
+            elif page == "🎯 Session Check-in":
+                import views.session_checkin
 
-            views.admin_participants.show()
-        elif page == "🚫 Blacklist Management":
-            import views.admin_blacklist
+                views.session_checkin.show()
+            elif page == "🤖 Session Manager AI":
+                import views.session_manager
 
-            views.admin_blacklist.show()
-        elif page == "📢 Announcement Management":
-            import views.admin_announcements
+                views.session_manager.show()
+            elif page == "📋 Reservation Management":
+                import views.admin_reservations
 
-            views.admin_announcements.show()
+                views.admin_reservations.show()
+            elif page == "👥 Participant Management":
+                import views.admin_participants
 
-        # Master-only page
-        if auth.is_master():
-            if st.session_state.get("page") == "admin_management":
-                import views.master_admin
+                views.admin_participants.show()
+            elif page == "🚫 Blacklist Management":
+                import views.admin_blacklist
 
-                views.master_admin.show()
+                views.admin_blacklist.show()
+            elif page == "📢 Announcement Management":
+                import views.admin_announcements
+
+                views.admin_announcements.show()
+
+            # Master-only page
+            if auth.is_master():
+                if st.session_state.get("page") == "admin_management":
+                    import views.master_admin
+
+                    views.master_admin.show()
 
     else:
         # Pre-login handling

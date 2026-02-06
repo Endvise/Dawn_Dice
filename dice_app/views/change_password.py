@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Change Password page - Users can change their password
+Change Password page - All users can change their password
 """
 
 import streamlit as st
@@ -8,7 +8,7 @@ import auth
 
 
 def show():
-    """Show change password page for users"""
+    """Show change password page for all users"""
     auth.require_login()
 
     user = auth.get_current_user()
@@ -17,14 +17,28 @@ def show():
         st.error("User information not found. Please log in again.")
         return
 
-    # Only regular users can use this page
-    if auth.is_admin():
-        st.warning("Administrators should use the admin password change page.")
-        st.info("Go to Admin Dashboard → Settings → Change Password")
-        if st.button("Go to Admin Dashboard"):
-            st.session_state["page"] = "Admin Dashboard"
+    # Full-page mode (hide sidebar)
+    st.markdown(
+        """
+    <style>
+    [data-testid="stSidebar"] {
+        display: none;
+    }
+    .stRadio {
+        display: none;
+    }
+    </style>
+    """,
+        unsafe_allow_html=True,
+    )
+
+    # Back button
+    col_back = st.columns([1, 8])[0]
+    with col_back:
+        if st.button("← Back"):
+            if "show_change_password" in st.session_state:
+                del st.session_state["show_change_password"]
             st.rerun()
-        return
 
     st.title("🔐 Change Password")
     st.markdown("---")
@@ -84,10 +98,3 @@ def show():
     - Minimum 8 characters
     - Different from current password
     """)
-
-    # Back button
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col1:
-        if st.button("← Back", use_container_width=True):
-            st.session_state["page"] = "My Reservations"
-            st.rerun()

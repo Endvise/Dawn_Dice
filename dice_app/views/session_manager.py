@@ -409,7 +409,6 @@ def show():
                     response = call_groq_api(
                         messages=messages,
                         config=config,
-                        max_tokens=max_tokens,
                     )
 
             if response.success:

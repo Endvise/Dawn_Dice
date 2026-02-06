@@ -6,6 +6,7 @@ Main Homepage - Session-based Reservation System
 import streamlit as st
 import database as db
 import auth
+import utils
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 
@@ -131,13 +132,28 @@ def get_time_remaining(open_time_str: str) -> Dict[str, int]:
         return {"days": 0, "hours": 0, "minutes": 0, "seconds": 0}
 
 
-def format_datetime(dt_str: str) -> str:
-    """Format datetime string for display."""
+def format_datetime(dt_str: str, show_timezone: bool = True) -> str:
+    """Format datetime string for display with user's timezone."""
+    if not dt_str:
+        return "N/A"
+    timezone_key = "timezone_selector"
+    tz = st.session_state.get(f"selected_{timezone_key}", "UTC")
+    formatted = utils.format_utc_to_timezone(dt_str, tz)
+    if show_timezone:
+        display_name = utils.get_timezone_display_name(tz)
+        return f"{formatted} ({display_name})"
+    return formatted
+
+
+def format_datetime_utc(dt_str: str) -> str:
+    """Format datetime string for display in UTC."""
     if not dt_str:
         return "N/A"
     try:
-        dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
-        return dt.strftime("%Y-%m-%d %H:%M")
+        dt = utils.parse_utc_time(dt_str)
+        if dt:
+            return dt.strftime("%Y-%m-%d %H:%M")
+        return str(dt_str)
     except (ValueError, TypeError):
         return str(dt_str)
 
@@ -190,6 +206,9 @@ def show():
             st.info("## ⏰ Reservations Opening Soon")
 
         # Time information
+        st.markdown("#### 🕐 Reservation Times")
+        st.caption("Times shown in your local timezone")
+
         col_time1, col_time2 = st.columns(2)
 
         with col_time1:
@@ -207,6 +226,18 @@ def show():
                 )
             else:
                 st.info("⏰ **Reservation Closes**: When Full")
+
+        # Show UTC reference
+        if status["reservation_open_time"] or status["reservation_close_time"]:
+            with st.expander("📌 UTC Reference Times"):
+                if status["reservation_open_time"]:
+                    st.text(
+                        f"Opens: {format_datetime_utc(status['reservation_open_time'])} UTC"
+                    )
+                if status["reservation_close_time"]:
+                    st.text(
+                        f"Closes: {format_datetime_utc(status['reservation_close_time'])} UTC"
+                    )
     else:
         # No active session
         st.warning("## 📢 No Active Session")

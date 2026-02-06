@@ -14,7 +14,6 @@ def show():
 
     user = auth.get_current_user()
 
-    # Handle case where user is None
     if not user:
         st.error("User information not found. Please log in again.")
         return
@@ -22,7 +21,6 @@ def show():
     st.title("Admin Account Management")
     st.markdown("---")
 
-    # Get admin list from admins table
     admins = db.list_admins(role="admin")
 
     total_admins = len(admins)
@@ -38,7 +36,7 @@ def show():
 
     st.markdown("---")
 
-    tab1, tab2 = st.tabs(["Admin List", "Add Admin"])
+    tab1, tab2, tab3 = st.tabs(["Admin List", "Add Admin", "Promote/Demote Users"])
 
     with tab1:
         st.markdown("### Admin List")
@@ -247,6 +245,124 @@ def show():
             except Exception as e:
                 st.error(f"Error creating: {e}")
 
+    with tab3:
+        st.markdown("### Promote/Demote Users")
+        st.info(
+            "Only Master accounts can promote users to Admin or demote Admins to users."
+        )
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("#### Promote User to Admin")
+
+            users = db.list_users()
+            admins = db.list_admins()
+            admin_ids = [a.get("id") for a in admins]
+
+            regular_users = [u for u in users if u.get("id") not in admin_ids]
+
+            if regular_users:
+                st.markdown(f"**Regular Users ({len(regular_users)})**")
+
+                for user_item in regular_users:
+                    with st.expander(
+                        f"👤 {user_item.get('nickname', 'Unknown')} - {user_item.get('commander_number', 'N/A')}"
+                    ):
+                        st.markdown(f"""
+                        - **Nickname**: {user_item.get("nickname", "Unknown")}
+                        - **Commander ID**: {user_item.get("commander_number", "N/A")}
+                        - **Server**: {user_item.get("server", "N/A")}
+                        - **Alliance**: {user_item.get("alliance", "None") if user_item.get("alliance") else "None"}
+                        """)
+
+                        if st.button(
+                            "Promote to Admin",
+                            key=f"promote_{user_item['id']}",
+                            type="primary",
+                            use_container_width=True,
+                        ):
+                            if st.confirm(
+                                f"Promote {user_item.get('nickname', 'Unknown')} to Admin?"
+                            ):
+                                try:
+                                    admin_data = {
+                                        "username": user_item.get(
+                                            "commander_number", ""
+                                        ),
+                                        "password_hash": user_item.get(
+                                            "password_hash", ""
+                                        ),
+                                        "full_name": user_item.get("nickname", ""),
+                                        "role": "admin",
+                                        "server": user_item.get("server", ""),
+                                        "alliance": user_item.get("alliance", ""),
+                                    }
+                                    result = db.insert("admins", admin_data)
+                                    if result:
+                                        st.success(
+                                            f"Promoted {user_item.get('nickname', 'Unknown')} to Admin!"
+                                        )
+                                        st.rerun()
+                                    else:
+                                        st.error("Failed to promote user.")
+                                except Exception as e:
+                                    st.error(f"Error promoting: {e}")
+            else:
+                st.info("No regular users found.")
+
+        with col2:
+            st.markdown("#### Demote Admin to User")
+
+            if admins:
+                st.markdown(f"**Admins ({len(admins)})**")
+
+                for admin in admins:
+                    is_current_user = user.get("id") == admin.get("id")
+
+                    with st.expander(
+                        f"👑 {admin.get('nickname', 'Unknown')} - {admin.get('username', 'Unknown')}"
+                    ):
+                        st.markdown(f"""
+                        - **Username**: {admin.get("username", "Unknown")}
+                        - **Nickname**: {admin.get("nickname", "Unknown")}
+                        - **Role**: {admin.get("role", "Unknown")}
+                        - **Status**: {"Active" if admin.get("is_active") else "Inactive"}
+                        """)
+
+                        if is_current_user:
+                            st.warning("You cannot demote yourself.")
+                        elif st.button(
+                            "Demote to User",
+                            key=f"demote_{admin['id']}",
+                            use_container_width=True,
+                        ):
+                            if st.confirm(
+                                f"Demote {admin.get('nickname', 'Unknown')} to regular user?"
+                            ):
+                                try:
+                                    success = db.delete("admins", {"id": admin["id"]})
+                                    if success:
+                                        st.success(
+                                            f"Demoted {admin.get('nickname', 'Unknown')} to User!"
+                                        )
+                                        st.rerun()
+                                    else:
+                                        st.error("Failed to demote admin.")
+                                except Exception as e:
+                                    st.error(f"Error demoting: {e}")
+            else:
+                st.info("No admins found.")
+
+        st.markdown("---")
+        st.markdown("""
+        **Important Notes:**
+
+        - **Promote**: User can log in with existing credentials (commander_number + password)
+        - **Demote**: Admin is removed from admins table, loses all admin permissions
+        - **Self-protection**: You cannot demote yourself
+        """)
+
     st.markdown("---")
 
     st.markdown("""
@@ -272,9 +388,8 @@ def show():
     """)
 
     st.markdown("---")
-    st.markdown("### 🔐 Change My Password")
+    st.markdown("### Change My Password")
 
-    # Password change form for current admin
     with st.form("admin_change_password_form"):
         old_password = st.text_input(
             "Current Password", type="password", key="admin_old_password"
@@ -282,7 +397,6 @@ def show():
         new_password = st.text_input(
             "New Password",
             type="password",
-            min_length=8,
             help="Minimum 8 characters",
             key="admin_new_password",
         )
@@ -295,7 +409,6 @@ def show():
         )
 
         if submitted:
-            # Validation
             if not old_password:
                 st.error("Please enter your current password.")
             elif not new_password:
@@ -307,7 +420,6 @@ def show():
             elif old_password == new_password:
                 st.error("New password must be different from current password.")
             else:
-                # Attempt to change password
                 success, message = auth.change_admin_password(
                     user["id"], old_password, new_password
                 )

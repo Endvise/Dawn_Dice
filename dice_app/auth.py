@@ -19,6 +19,7 @@ SESSION_KEYS = {
     "nickname": "dice_nickname",
     "login_time": "dice_login_time",
     "access_token": "dice_access_token",  # Supabase access token
+    "timezone": "dice_timezone",  # User's preferred timezone
 }
 
 

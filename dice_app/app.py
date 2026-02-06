@@ -7,6 +7,7 @@ import streamlit as st
 import auth
 import database as db
 import security_utils
+import utils
 
 
 def main():
@@ -86,6 +87,10 @@ def main():
 
             # User info
             auth.show_user_info()
+
+            # Timezone selector
+            st.markdown("---")
+            utils.show_timezone_selector()
         else:
             st.markdown("### 📋 Menu")
             page = "Login"

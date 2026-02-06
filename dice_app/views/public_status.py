@@ -6,7 +6,17 @@ Reservation status page accessible to non-logged-in users
 
 import streamlit as st
 import database as db
+import utils
 from datetime import datetime
+
+
+def format_public_time(dt_str: str) -> str:
+    """Format datetime string with user's timezone for public page."""
+    if not dt_str:
+        return "N/A"
+    timezone_key = "timezone_selector"
+    tz = st.session_state.get(f"selected_{timezone_key}", "UTC")
+    return utils.format_utc_to_timezone(dt_str, tz)
 
 
 def show_public_status():
@@ -51,9 +61,9 @@ def show_public_status():
     if not is_open:
         st.warning("Reservations are currently CLOSED.")
         if open_time:
-            st.info(f"**Reservation Opens:** {open_time}")
+            st.info(f"**Reservation Opens:** {format_public_time(open_time)}")
         if close_time:
-            st.info(f"**Reservation Closes:** {close_time}")
+            st.info(f"**Reservation Closes:** {format_public_time(close_time)}")
         return
 
     # Reservation is open

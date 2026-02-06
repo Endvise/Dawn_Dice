@@ -6,7 +6,19 @@ Admin Dashboard Page (Real-time Statistics)
 import streamlit as st
 import database as db
 import auth
+import utils
 from datetime import datetime, timedelta
+
+
+def format_dashboard_time() -> str:
+    """Format current time with user's timezone."""
+    timezone_key = "timezone_selector"
+    tz = st.session_state.get(f"selected_{timezone_key}", "UTC")
+    offset = utils.get_timezone_offset(tz)
+    from datetime import timezone as tzinfo, timedelta as td
+
+    tz_info = tzinfo(td(hours=offset))
+    return datetime.now(tz_info).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def get_dashboard_stats() -> dict:
@@ -108,7 +120,7 @@ def show():
         )
 
     with col2:
-        st.info(f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        st.info(f"Last updated: {format_dashboard_time()}")
 
     stats = get_dashboard_stats()
 

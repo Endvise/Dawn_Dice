@@ -6,8 +6,22 @@ Event Sessions Management Page
 import streamlit as st
 import database as db
 import auth
+import utils
 from datetime import datetime, date, timedelta
 from typing import Optional
+
+
+def format_session_time(dt_str: str, show_utc: bool = True) -> str:
+    """Format session time with user's timezone."""
+    if not dt_str:
+        return "N/A"
+    timezone_key = "timezone_selector"
+    tz = st.session_state.get(f"selected_{timezone_key}", "UTC")
+    formatted = utils.format_utc_to_timezone(dt_str, tz)
+    if show_utc:
+        utc_time = utils.format_utc_to_timezone(dt_str, "UTC")
+        return f"{formatted} (UTC: {utc_time})"
+    return formatted
 
 
 def show():
@@ -74,6 +88,10 @@ def show():
                 with st.expander(
                     f"{status_badge} Session {session['session_number']} - {session['session_name']}"
                 ):
+                    # Timezone-aware time display
+                    open_time = session.get("reservation_open_time")
+                    close_time = session.get("reservation_close_time")
+
                     st.markdown(f"""
                     **Session Name**: {session["session_name"]}
                     **Session Date**: {session["session_date"]}
@@ -82,6 +100,14 @@ def show():
                     **Created By**: {creator_name}
                     **Created At**: {session["created_at"]}
                     """)
+
+                    if open_time or close_time:
+                        st.markdown("#### 🕐 Reservation Times")
+                        st.caption("Times shown in your timezone")
+                        if open_time:
+                            st.text(f"Opens: {format_session_time(open_time)}")
+                        if close_time:
+                            st.text(f"Closes: {format_session_time(close_time)}")
 
                     if (
                         participant_count + approved_count

@@ -17,7 +17,7 @@ def show():
         st.error("User information not found. Please log in again.")
         return
 
-    # Full-page mode - hide sidebar
+    # Full-page mode - hide sidebar but show page navigation
     st.markdown(
         """
     <style>
@@ -29,10 +29,53 @@ def show():
         unsafe_allow_html=True,
     )
 
+    # Page navigation
+    pages = [
+        "🔐 Change Password",
+        "🏠 Home",
+        "📝 Make Reservation",
+        "📊 My Reservations",
+    ]
+
+    # Add admin pages if user is admin
+    if auth.is_admin():
+        admin_pages = [
+            "📊 Dashboard",
+            "🎲 Session Management",
+            "🎯 Session Check-in",
+            "🤖 Session Manager AI",
+            "📋 Reservation Management",
+            "👥 Participant Management",
+            "🚫 Blacklist Management",
+            "📢 Announcement Management",
+        ]
+        pages.extend(admin_pages)
+
+    # Page selector
+    selected_page = st.selectbox("Go to Page", pages, index=0, key="page_selector")
+
+    # Navigate to selected page
+    if selected_page != "🔐 Change Password":
+        st.session_state["show_change_password"] = False
+        page_map = {
+            "🏠 Home": "🏠 Home",
+            "📝 Make Reservation": "📝 Make Reservation",
+            "📊 My Reservations": "📊 My Reservations",
+            "📊 Dashboard": "📊 Dashboard",
+            "🎲 Session Management": "🎲 Session Management",
+            "🎯 Session Check-in": "🎯 Session Check-in",
+            "🤖 Session Manager AI": "🤖 Session Manager AI",
+            "📋 Reservation Management": "📋 Reservation Management",
+            "👥 Participant Management": "👥 Participant Management",
+            "🚫 Blacklist Management": "🚫 Blacklist Management",
+            "📢 Announcement Management": "📢 Announcement Management",
+        }
+        st.session_state["page"] = page_map.get(selected_page, "🏠 Home")
+        st.rerun()
+        return
+
     st.title("🔐 Change Password")
-
     st.markdown(f"**Account:** {user.get('commander_number', 'Unknown')}")
-
     st.markdown("---")
 
     # Password change form
@@ -50,17 +93,9 @@ def show():
             "Confirm New Password", type="password", key="confirm_password"
         )
 
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            submitted = st.form_submit_button(
-                "Change Password", use_container_width=True, type="primary"
-            )
-        with col2:
-            back = st.form_submit_button("← Back", use_container_width=True)
-
-        if back:
-            st.session_state["show_change_password"] = False
-            st.rerun()
+        submitted = st.form_submit_button(
+            "Change Password", use_container_width=True, type="primary"
+        )
 
         if submitted:
             if not old_password:
@@ -79,7 +114,7 @@ def show():
                 )
 
                 if success:
-                    st.success(f"Password changed successfully!")
+                    st.success("Password changed successfully!")
                     st.info("Please log in again with your new password.")
                     if st.button("Logout"):
                         auth.logout()
@@ -87,7 +122,6 @@ def show():
                     st.error(f"Error: {message}")
 
     st.markdown("---")
-
     st.markdown("""
     **Password Requirements:**
     - Minimum 8 characters

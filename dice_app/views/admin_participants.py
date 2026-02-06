@@ -907,7 +907,7 @@ def _show_edit_form(participant: dict, is_master: bool):
         number = st.number_input(
             "Number",
             min_value=1,
-            value=int(participant.get("number", 1)),
+            value=int(participant.get("number") or 1),
         )
         nickname = st.text_input("Nickname", value=participant.get("nickname", ""))
         igg_id = st.text_input("IGG ID", value=participant.get("igg_id", "") or "")

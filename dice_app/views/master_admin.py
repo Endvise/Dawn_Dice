@@ -14,7 +14,7 @@ def show():
 
     user = auth.get_current_user()
 
-    # user가 None인 경우 처리
+    # Handle case where user is None
     if not user:
         st.error("User information not found. Please log in again.")
         return
@@ -22,7 +22,7 @@ def show():
     st.title("Admin Account Management")
     st.markdown("---")
 
-    # admins 테이블에서 관리자 목록 조회
+    # Get admin list from admins table
     admins = db.list_admins(role="admin")
 
     total_admins = len(admins)

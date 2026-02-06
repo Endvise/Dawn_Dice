@@ -333,10 +333,10 @@ def show():
 
         st.markdown("""
         **Excel Format:**
-        - **사령관 ID**: 10자리 숫자 (필수)
-        - **소속**: `#000 연맹이름` 형식 → 서버(#000) + 연맹이름 분리
-        - **닉네임**: 빈칸 (사용자가 나중에 직접 변경)
-        - **중복 제거**: 사령관 ID가 중복되면 1개만 남김
+        - **Commander ID**: 10-digit number (required)
+        - **Affiliation**: `#000 alliance_name` format → server(#000) + alliance name
+        - **Nickname**: Leave blank (user will change later)
+        - **Deduplication**: If commander ID is duplicated, only 1 entry is kept
         """)
 
         # Session selection
@@ -379,7 +379,7 @@ def show():
                         "Commander ID Column (10 digits)",
                         all_cols,
                         index=0,
-                        help="10자리 사령관번호가 있는 컬럼",
+                        help="Column containing 10-digit commander ID",
                     )
 
                 with col2:
@@ -387,7 +387,7 @@ def show():
                         "Affiliation Column",
                         ["None"] + all_cols,
                         index=1 if len(all_cols) > 1 else 0,
-                        help="'#000 연맹이름' 형식의 소속 컬럼",
+                        help="Affiliation column in '#000 alliance_name' format",
                     )
 
                 # Process and show preview

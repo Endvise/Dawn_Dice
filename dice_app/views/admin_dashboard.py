@@ -336,9 +336,6 @@ def show():
                 "notice": "📢",
                 "guide": "ℹ️",
                 "event": "🎉",
-                "공지": "📢",
-                "안내": "ℹ️",
-                "이벤트": "🎉",
             }
 
             for ann in announcements_list:

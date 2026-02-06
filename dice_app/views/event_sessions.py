@@ -370,7 +370,7 @@ def show():
                 st.error("Enter session name.")
                 return
 
-            # user_id가 None인지 확인
+            # Check if user_id is None
             user_id = user.get("id") if user else None
             if not user_id:
                 st.error("User ID not found. Please log in again.")

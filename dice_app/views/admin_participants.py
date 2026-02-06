@@ -486,14 +486,14 @@ def show():
             if active_id in session_ids:
                 default_idx = session_ids.index(active_id)
 
-        import_session_id = st.selectbox(
+        import_session_id_id = st.selectbox(
             "Event/Session",
             options=session_ids,
             format_func=lambda x: session_options.get(x, x)
             if x != "Select Session..."
             else x,
             index=default_idx,
-            key="import_session_id",
+            key="import_session_id_id",
         )
 
         # File uploader
@@ -620,7 +620,7 @@ def show():
                         type="primary",
                         use_container_width=True,
                     ):
-                        if import_session == "Select Session...":
+                        if import_session_id == "Select Session...":
                             st.error("Please select a session.")
                         elif not processed_data:
                             st.error("No valid data to import.")
@@ -686,7 +686,7 @@ def show():
                                         "igg_id": commander_id,
                                         "affiliation": user_server,  # ✅ Existing user's server
                                         "alliance": user_alliance,  # ✅ Existing user's alliance
-                                        "event_name": import_session,
+                                        "event_name": import_session_id,
                                         "completed": 0,
                                         "confirmed": 0,
                                         "wait_confirmed": 0,
@@ -724,7 +724,7 @@ def show():
                                 st.download_button(
                                     "📥 Download Credentials CSV",
                                     csv,
-                                    f"credentials_{import_session}.csv",
+                                    f"credentials_{import_session_id}.csv",
                                     "text/csv",
                                     use_container_width=True,
                                 )

@@ -16,7 +16,7 @@ Access: admin, master only
 import streamlit as st
 from .. import auth
 from .. import database as db
-from ..utils.groq_client import (
+from ..groq_utils.groq_client import (
     call_groq_api,
     get_groq_config,
     GroqResponse,

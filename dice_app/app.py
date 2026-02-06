@@ -7,7 +7,7 @@ import streamlit as st
 import auth
 import database as db
 import security_utils
-from . import utils
+import utils
 
 
 def main():

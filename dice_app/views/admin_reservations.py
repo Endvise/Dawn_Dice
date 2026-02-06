@@ -77,7 +77,7 @@ def show():
                 "Cancelled": "cancelled",
             }
 
-            if res["status"] != status_map[status_filter]:
+            if res.get("status") != status_map[status_filter]:
                 continue
 
         # Blacklist filter
@@ -184,7 +184,7 @@ def show():
                                 except Exception as e:
                                     st.error(f"Error rejecting: {e}")
 
-                    elif res["status"] == "approved":
+                    elif res.get("status") == "approved":
                         if st.button(
                             "Cancel Approval",
                             key=f"cancel_approval_{res['id']}",

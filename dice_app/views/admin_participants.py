@@ -574,12 +574,56 @@ def show():
                 if not processed_data:
                     st.warning("No valid commander IDs found (10 digits required).")
                 else:
-                    preview_df = pd.DataFrame(processed_data)
+                    # Selection controls
+                    col_sel1, col_sel2, col_sel3 = st.columns([1, 1, 4])
 
-                    # Show all data
-                    st.dataframe(preview_df, use_container_width=True)
+                    with col_sel1:
+                        select_all = st.checkbox(
+                            "전체 선택", key="select_all_participants"
+                        )
 
-                    # Show debug info with expandable details
+                    with col_sel2:
+                        deselect_all = st.checkbox(
+                            "전체 해제", key="deselect_all_participants"
+                        )
+
+                    with col_sel3:
+                        st.info(f"**{len(processed_data)}명 중 선택**")
+
+                    # Build selection dataframe with checkboxes
+                    st.markdown("### 📋 선택하여 가져오기")
+
+                    # Custom checkbox selection UI
+                    selected_indices = []
+
+                    # Show in batches of 50 for performance
+                    batch_size = 50
+                    for batch_start in range(0, len(processed_data), batch_size):
+                        batch_end = min(batch_start + batch_size, len(processed_data))
+
+                        for i in range(batch_start, batch_end):
+                            data = processed_data[i]
+                            col_cb, col_info = st.columns([1, 10])
+
+                            with col_cb:
+                                default = select_all and not deselect_all
+                                is_selected = st.checkbox(
+                                    "",
+                                    key=f"import_{i}",
+                                    value=default,
+                                )
+                                if is_selected:
+                                    selected_indices.append(i)
+
+                            with col_info:
+                                st.markdown(f"""
+                                **{data["commander_id"]}** | {data["server"]} | {data["alliance"] or "(연맹 없음)"}
+                                """)
+
+                    selected_count = len(selected_indices)
+                    selected_data = [processed_data[i] for i in selected_indices]
+
+                    # Show debug info
                     col_debug1, col_debug2, col_debug3 = st.columns(3)
                     with col_debug1:
                         st.info(f"**총 행 수**: {len(df)}")
@@ -596,129 +640,130 @@ def show():
                                 invalid_df = pd.DataFrame(invalid_ids)
                                 st.dataframe(invalid_df, use_container_width=True)
 
-                    st.info(f"**최종 유효 항목**: {len(processed_data)}개")
+                    st.success(
+                        f"**선택됨**: {selected_count}명 / **{len(processed_data)}명**"
+                    )
 
-                    with col_opt2:
-                        st.info(
-                            f"**Duplicate IDs Removed**: {len(df) - len(processed_data)}"
-                        )
+                    # Import button
+                    if st.button(
+                        "🎯 선택한 인원 가져오기",
+                        type="primary",
+                        use_container_width=True,
+                        disabled=selected_count == 0,
+                    ):
+                        if import_session == "Select Session...":
+                            st.error("세션을 선택해주세요.")
+                        elif not selected_data:
+                            st.error("선택된 인원이 없습니다.")
+                        else:
+                            with st.spinner("가져오는 중..."):
+                                success_count = 0
+                                password_report = []
 
-                # Import button
-                if st.button(
-                    "Import with Auto-generated Credentials",
-                    type="primary",
-                    use_container_width=True,
-                ):
-                    if import_session == "Select Session...":
-                        st.error("Please select a session.")
-                    elif not processed_data:
-                        st.error("No valid data to import.")
-                    else:
-                        with st.spinner("Importing..."):
-                            success_count = 0
-                            password_report = []
+                                for data in selected_data:
+                                    try:
+                                        commander_id = data["commander_id"]
+                                        server = data["server"]
+                                        alliance = data["alliance"]
 
-                            for data in processed_data:
-                                try:
-                                    commander_id = data["commander_id"]
-                                    server = data["server"]
-                                    alliance = data["alliance"]
+                                        # Generate password
+                                        password = generate_password()
+                                        password_hash = db.hash_password(password)
 
-                                    # Generate password
-                                    password = generate_password()
-                                    password_hash = db.hash_password(password)
-
-                                    # Check if user exists
-                                    existing_user = db.get_user_by_commander_number(
-                                        commander_id
-                                    )
-
-                                    if existing_user:
-                                        user_id = existing_user["id"]
-                                        action = "existing"
-                                        # Use existing user info
-                                        nickname = existing_user.get("nickname", "")
-                                        user_server = existing_user.get("server", "")
-                                        user_alliance = existing_user.get(
-                                            "alliance", ""
+                                        # Check if user exists
+                                        existing_user = db.get_user_by_commander_number(
+                                            commander_id
                                         )
-                                        # Store plaintext password if not exists
-                                        if not existing_user.get("plaintext_password"):
-                                            try:
-                                                db.update(
-                                                    "users",
-                                                    {"plaintext_password": password},
-                                                    {"id": f"eq.{user_id}"},
-                                                )
-                                            except:
-                                                pass
-                                    else:
-                                        # Create new user
-                                        user_data = {
-                                            "commander_number": commander_id,
-                                            "nickname": nickname,  # Use nickname from form
-                                            "password_hash": password_hash,
-                                            "plaintext_password": password,
-                                            "server": server,
-                                            "alliance": alliance,
-                                            "is_active": True,
-                                        }
-                                        user_id = db.insert("users", user_data)
-                                        action = "new"
-                                        nickname = ""
-                                        user_server = server
-                                        user_alliance = alliance
 
-                                    # Add to participants - use existing user info
-                                    participant_data = {
-                                        "nickname": nickname,  # ✅ Existing user's nickname
-                                        "igg_id": commander_id,
-                                        "affiliation": user_server,  # ✅ Existing user's server
-                                        "alliance": user_alliance,  # ✅ Existing user's alliance
-                                        "event_name": import_session,
-                                        "completed": 0,
-                                        "confirmed": 0,
-                                        "wait_confirmed": 0,
-                                        "notes": f"Imported by {user.get('username', 'admin')}",
-                                    }
-                                    db.add_participant(participant_data)
+                                        if existing_user:
+                                            user_id = existing_user["id"]
+                                            action = "existing"
+                                            nickname = existing_user.get("nickname", "")
+                                            user_server = existing_user.get(
+                                                "server", ""
+                                            )
+                                            user_alliance = existing_user.get(
+                                                "alliance", ""
+                                            )
+                                            if not existing_user.get(
+                                                "plaintext_password"
+                                            ):
+                                                try:
+                                                    db.update(
+                                                        "users",
+                                                        {
+                                                            "plaintext_password": password
+                                                        },
+                                                        {"id": f"eq.{user_id}"},
+                                                    )
+                                                except:
+                                                    pass
+                                        else:
+                                            # Create new user
+                                            user_data = {
+                                                "commander_number": commander_id,
+                                                "nickname": "",
+                                                "password_hash": password_hash,
+                                                "plaintext_password": password,
+                                                "server": server,
+                                                "alliance": alliance,
+                                                "is_active": True,
+                                            }
+                                            user_id = db.insert("users", user_data)
+                                            action = "new"
+                                            nickname = ""
+                                            user_server = server
+                                            user_alliance = alliance
 
-                                    success_count += 1
-                                    password_report.append(
-                                        {
-                                            "Commander ID": commander_id,
-                                            "Server": server,
-                                            "Alliance": alliance,
-                                            "Password": password,
-                                            "Status": action.capitalize(),
+                                        # Add to participants
+                                        participant_data = {
+                                            "nickname": nickname,
+                                            "igg_id": commander_id,
+                                            "affiliation": user_server,
+                                            "alliance": user_alliance,
+                                            "event_name": import_session,
+                                            "completed": 0,
+                                            "confirmed": 0,
+                                            "wait_confirmed": 1,  # Auto-confirm as waitlist
+                                            "notes": f"대기인원 가져옴 by {user.get('username', 'admin')}",
                                         }
+                                        db.add_participant(participant_data)
+
+                                        success_count += 1
+                                        password_report.append(
+                                            {
+                                                "Commander ID": commander_id,
+                                                "Server": server,
+                                                "Alliance": alliance,
+                                                "Password": password,
+                                                "Status": action.capitalize(),
+                                            }
+                                        )
+
+                                    except Exception as e:
+                                        st.warning(
+                                            f"가져오기 오류 {data.get('commander_id', 'unknown')}: {e}"
+                                        )
+                                        continue
+
+                                st.success(f"{success_count}명 가져오기 완료!")
+
+                                # Show password report
+                                if password_report:
+                                    st.markdown("### 🔑 비밀번호 리포트")
+                                    report_df = pd.DataFrame(password_report)
+                                    st.dataframe(report_df, use_container_width=True)
+
+                                    csv = report_df.to_csv(index=False)
+                                    st.download_button(
+                                        "📥 비밀번호 CSV 다운로드",
+                                        csv,
+                                        f"waitlist_{import_session}.csv",
+                                        "text/csv",
+                                        use_container_width=True,
                                     )
 
-                                except Exception as e:
-                                    st.warning(
-                                        f"Error importing {data.get('commander_id', 'unknown')}: {e}"
-                                    )
-                                    continue
-
-                            st.success(f"Imported {success_count} participants!")
-
-                            # Show password report
-                            if password_report:
-                                st.markdown("### Credentials Report")
-                                report_df = pd.DataFrame(password_report)
-                                st.dataframe(report_df, use_container_width=True)
-
-                                # Download report
-                                csv = report_df.to_csv(index=False)
-                                st.download_button(
-                                    "📥 Download Credentials CSV",
-                                    csv,
-                                    f"credentials_{import_session}.csv",
-                                    "text/csv",
-                                    use_container_width=True,
-                                )
-
-                            st.rerun()
+                                st.rerun()
 
             except Exception as e:
                 st.error(f"Error reading file: {e}")

@@ -408,6 +408,13 @@ def show():
         with col2:
             st.markdown("#### Preview")
 
+            # Initialize default reason with fallback
+            _default_reason = (
+                default_reason
+                if "default_reason" in dir() or "default_reason" in locals()
+                else "Bulk upload from file"
+            )
+
             if "show_preview" in st.session_state and st.session_state.get(
                 "show_preview"
             ):
@@ -471,10 +478,17 @@ def show():
                                     continue
 
                             try:
+                                # Safely get default_reason
+                                _dr = (
+                                    default_reason
+                                    if "default_reason" in locals()
+                                    or "default_reason" in globals()
+                                    else "Bulk upload from file"
+                                )
                                 db.add_to_blacklist(
                                     commander_id=entry["commander_id"],
                                     nickname=entry.get("nickname"),
-                                    reason=entry.get("reason", default_reason),
+                                    reason=entry.get("reason", _dr),
                                     added_by=user["id"],
                                 )
                                 imported_count += 1

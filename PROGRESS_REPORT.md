@@ -381,3 +381,92 @@ pip install basedpyright
 
 *본 보고서는 2026-02-03에 작성되었습니다.*
 *다음 작업자는 위 내용을 참고하여 작업을 이어 주세요.*
+
+---
+
+## 9. 2026-02-06 Import Excel 버그 수정
+
+### 9.1 수정 목록
+
+| 날짜 | 커밋 | 수정 내용 | 비고 |
+|------|------|----------|------|
+| 2026-02-06 | 240fe79 | `participant.get("number")` None 처리 | `int(None)` 에러 방지 |
+| 2026-02-06 | 3555d9c | DEBUG 코드 제거 | |
+| 2026-02-06 | cea0f9b | Nickname Column 추가 | Column Mapping 3개로 확장 |
+| 2026-02-06 | e27d330 | nickname 변수 scope 수정 | 기존 사용자 없을 때 undefined 문제 |
+| 2026-02-06 | bdd37db | session_state 처리 수정 | `st.session_state.get()` 사용 |
+
+### 9.2 상세 내용
+
+#### 9.2.1 Nickname Column 추가 (cea0f9b)
+
+**문제:** Excel에서 닉네임 열을 선택할 수 없어서 정보 손실
+
+**수정 전:**
+```
+Column Mapping: 2개 (Commander ID, Affiliation)
+```
+
+**수정 후:**
+```
+Column Mapping: 3개 (Commander ID, Nickname, Affiliation)
+```
+
+**사용 방법:**
+1. Commander ID Column: `IGG아이디` 선택
+2. **Nickname Column**: 닉네임 열 선택 (새로 추가)
+3. Affiliation Column: `소속` 선택
+
+#### 9.2.2 nickname 변수 scope 수정 (e27d330)
+
+**문제:** 기존 사용자가 없을 때 `nickname` 변수가 정의되지 않음
+
+**에러 메시지:**
+```
+cannot access local variable 'nickname' where it is not associated with a value
+```
+
+**수정:**
+```python
+# 수정 전
+else:
+    user_data = {
+        "nickname": nickname if nickname else "",  # nickname 미정의
+    }
+    ...
+    nickname = ""  # 정의가 나중에!
+
+# 수정 후
+else:
+    user_data = {
+        "nickname": data.get("nickname", ""),  # data에서 직접 가져옴
+    }
+```
+
+#### 9.2.3 participant.number None 처리 (240fe79)
+
+**문제:** Participants 편집 시 `number` 필드가 None이면 에러
+
+**에러:**
+```
+TypeError: int(None) - cannot convert None to int
+```
+
+**수정:**
+```python
+# 수정 전
+value=int(participant.get("number", 1))
+
+# 수정 후
+value=int(participant.get("number") or 1)
+```
+
+### 9.3 사용 중인 GitHub 계정
+
+| 작업 | 계정 |
+|------|------|
+| 커밋/푸시 | `bland7754` |
+
+---
+
+*본 보고서는 2026-02-06에 업데이트되었습니다.*

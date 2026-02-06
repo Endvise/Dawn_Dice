@@ -199,25 +199,40 @@ def show():
 
                     # Delete button (admin/master only)
                     if auth.is_admin():
-                        if st.button(
-                            "Delete",
-                            key=f"delete_{res['id']}",
-                            type="secondary",
-                            use_container_width=True,
-                        ):
-                            confirm_delete = st.checkbox(
-                                "I understand this cannot be undone",
-                                key=f"confirm_delete_{res['id']}",
-                            )
-                            if confirm_delete:
-                                try:
-                                    db.delete_reservation(res["id"])
-                                    st.success("Deleted.")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Error deleting: {e}")
-                            else:
-                                st.warning("Please confirm to delete.")
+                        # Initialize delete confirmation state
+                        delete_key = f"confirm_delete_{res['id']}"
+                        if delete_key not in st.session_state:
+                            st.session_state[delete_key] = False
+
+                        col_del1, col_del2 = st.columns([1, 1])
+                        with col_del1:
+                            if st.button(
+                                "🗑️ Delete",
+                                key=f"delete_{res['id']}",
+                                type="secondary",
+                                use_container_width=True,
+                            ):
+                                st.session_state[delete_key] = not st.session_state[
+                                    delete_key
+                                ]
+
+                        with col_del2:
+                            if st.session_state[delete_key]:
+                                confirm = st.checkbox(
+                                    "I understand this cannot be undone",
+                                    value=True,
+                                    key=f"confirm_check_{res['id']}",
+                                )
+                                if confirm:
+                                    try:
+                                        db.delete_reservation(res["id"])
+                                        st.success("Deleted!")
+                                        st.session_state[delete_key] = False
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Error: {e}")
+                                else:
+                                    st.warning("Please confirm.")
 
                     # Add to blacklist button
                     if not res.get("is_blacklisted"):

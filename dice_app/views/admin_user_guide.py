@@ -14,7 +14,9 @@ def show():
 
     st.title("📖 DaWn Dice Party 사용 가이드")
     st.markdown("---")
-    st.markdown("이 가이드는 **DaWn Dice Party** 시스템의 모든 기능을 상세하게 설명합니다.")
+    st.markdown(
+        "이 가이드는 **DaWn Dice Party** 시스템의 모든 기능을 상세하게 설명합니다."
+    )
 
     # 목차 (사이드바 메뉴와 일치)
     st.markdown("""
@@ -898,7 +900,6 @@ def show():
     st.markdown("---")
     st.markdown("**© 2026 DaWn Dice Party**")
 
-
     # 목차 (사이드바 메뉴와 일치)
     st.markdown("""
     ## 목차
@@ -1174,10 +1175,10 @@ def show():
     3. Excel 대량 등록 → 파일 업로드 → 컬럼 매핑 → 가져오기
     """)
 
-    st.info("💡 **Excel 대량 등록 팁:**
+    st.info("""💡 **Excel 대량 등록 팁:**
     - 사령관번호는 10자리 숫자
     - '#000 연맹명' 형식으로 소속 입력
-    - 중복된 사령관번호는 자동으로 1개만 유지")
+    - 중복된 사령관번호는 자동으로 1개만 유지""")
 
     st.markdown("---")
 
@@ -1296,7 +1297,9 @@ def show():
     5. 변경 버튼 클릭
     """)
 
-    st.info("💡 **비밀번호 초기화:** 사용자의 비밀번호를 초기화하려면 '회원 관리 > Users' 탭에서 해당 사용자를 선택하고 'Reset Password' 버튼을 클릭하세요. 초기화된 비밀번호는 12345678입니다.")
+    st.info(
+        "💡 **비밀번호 초기화:** 사용자의 비밀번호를 초기화하려면 '회원 관리 > Users' 탭에서 해당 사용자를 선택하고 'Reset Password' 버튼을 클릭하세요. 초기화된 비밀번호는 12345678입니다."
+    )
 
     st.markdown("---")
 
@@ -1322,4 +1325,3 @@ def show():
     """)
 
     st.markdown("---")
-

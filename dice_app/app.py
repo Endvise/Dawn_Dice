@@ -79,7 +79,7 @@ def main():
                 "06. 🎯 Session Check-in",
                 "07. 🤖 Session Manager AI",
                 "08. 📋 Reservation Management",
-                "09. 👥 Participant Management",
+                "09. 👥 Member Management",
                 "10. 🚫 Blacklist Management",
                 "11. 📢 Announcement Management",
             ]:

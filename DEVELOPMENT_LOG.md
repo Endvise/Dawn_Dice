@@ -20,6 +20,7 @@
 | v14 | 2026-02-07 | Sisyphus | **사용 가이드 페이지 추가** - 관리자/사용자용 가이드 페이지 생성 (한국어/영어), 메뉴 번호 부여 |
 | v15 | 2026-02-07 | Sisyphus | **영어 UI 변경** - 참가자→회원, Participant→Member, LF 줄바꿈 설정, Streamlit Cloud 캐시 문제 해결 |
 | v16 | 2026-02-07 | Sisyphus | **메뉴 번호 형식 변경** - 마침표→언더스코어 (01. → 01_) |
+| v17 | 2026-02-07 | Sisyphus | **테이블/파일 이름 통일** - participants → members, admin_participants.py → admin_members.py |
 
 ---
 
@@ -1591,6 +1592,32 @@ dice_app/views/reservation.py            # participants → Members
 
 ### 원인
 Streamlit Cloud에서 마침표(`.`)가 포함된 메뉴명이 렌더링되지 않는 문제 해결
+
+## v17 (2026-02-07) - 테이블/파일 이름 통일
+
+### 변경 내용
+1. Supabase 테이블 `participants` → `members`로Rename
+2. 파일 `admin_participants.py` → `admin_members.py`로 변경
+3. 코드에서 `participants` → `members`로 변경 (44곳)
+
+### 수정된 파일
+| 파일 | 변경 전 | 변경 후 |
+|------|---------|---------|
+| Supabase 테이블 | `participants` | `members` |
+| `dice_app/views/admin_participants.py` | `admin_participants.py` | `admin_members.py` |
+| `dice_app/app.py` | `admin_participants` | `admin_members` |
+| `database.py` | `fetch_all("participants")` | `fetch_all("members")` |
+
+### Supabase에서 실행할 SQL
+```sql
+-- Rename participants table to members
+ALTER TABLE public.participants RENAME TO members;
+```
+
+### 주의사항
+- SQL 파일 위치: `.sisyphus/rename_participants_to_members.sql`
+- Supabase SQL Editor에서 위 SQL을 실행하세요.
+- 테이블Rename 후 RLS 정책도 확인 필요
 
 ---
 

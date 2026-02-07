@@ -152,9 +152,9 @@ def main():
 
             views.admin_reservations.show()
         elif page == "09_ 👥 Member Management":
-            import views.admin_participants
+            import views.admin_members
 
-            views.admin_participants.show()
+            views.admin_members.show()
         elif page == "10_ 🚫 Blacklist Management":
             import views.admin_blacklist
 

@@ -14,6 +14,11 @@
 | v08 | 2026-02-04 | Sisyphus | 영어 UI 적용 (home.py), None 처리 추가 |
 | v09 | 2026-02-05 | Sisyphus | **비밀번호 변경 기능 추가** - 사용자/관리자 기존 비밀번호 인증 후 새 비밀번호로 변경 가능 |
 | v10 | 2026-02-06 | Sisyphus | **Import Excel 버그 수정** - Nickname Column 추가, 변수 scope 수정, None 처리 |
+| v11 | 2026-02-07 | Sisyphus | **Reset Password 변경** - 관리자 비밀번호 초기화 시 12345678로 설정 |
+
+---
+
+## v11 (2026-02-07) - Reset Password 변경
 
 ---
 

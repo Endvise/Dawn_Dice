@@ -16,6 +16,9 @@ from io import BytesIO
 import database as db
 import auth
 
+# ============ 상수 정의 ============
+RESET_PASSWORD = "12345678"  # 관리자 비밀번호 초기화 시 기본 비밀번호
+
 
 def generate_password(length: int = 12) -> str:
     """Generate random password."""
@@ -858,7 +861,7 @@ def show():
                             key=f"reset_{user_id}",
                             width="stretch",
                         ):
-                            new_pw = generate_password()
+                            new_pw = RESET_PASSWORD  # 고정 비밀번호로 초기화
                             new_hash = db.hash_password(new_pw)
                             db.update(
                                 "users",

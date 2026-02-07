@@ -15,10 +15,26 @@
 | v09 | 2026-02-05 | Sisyphus | **비밀번호 변경 기능 추가** - 사용자/관리자 기존 비밀번호 인증 후 새 비밀번호로 변경 가능 |
 | v10 | 2026-02-06 | Sisyphus | **Import Excel 버그 수정** - Nickname Column 추가, 변수 scope 수정, None 처리 |
 | v11 | 2026-02-07 | Sisyphus | **Reset Password 변경** - 관리자 비밀번호 초기화 시 12345678로 설정 |
+| v12 | 2026-02-07 | Sisyphus | **비밀번호 변경 강제화** - Reset Password 후 첫 로그인 시 비밀번호 변경 페이지로 리다이렉트 |
 
 ---
 
-## v11 (2026-02-07) - Reset Password 변경
+## v12 (2026-02-07) - 비밀번호 변경 강제화
+
+### 변경 내용
+1. `users` 테이블에 `must_change_password` boolean 필드 추가
+2. 관리자가 Reset Password 클릭 시 `must_change_password=True` 설정
+3. 사용자가 비밀번호 변경 시 `must_change_password=False`로 자동 설정
+4. 로그인 시 `must_change_password=True`면 비밀번호 변경 페이지로 강제 리다이렉트
+
+### 워크플로우
+```
+1. 관리자: Reset Password 클릭 → 12345678로 초기화, must_change_password=True
+2. 사용자: 12345678로 로그인
+3. 시스템: must_change_password=True 감지 → 비밀번호 변경 페이지로 리다이렉트
+4. 사용자: 새 비밀번호 입력 → must_change_password=False
+5. 시스템: 정상 페이지 접근 허용
+```
 
 ---
 

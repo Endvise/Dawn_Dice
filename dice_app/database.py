@@ -212,9 +212,11 @@ def update_user(user_id: str, **kwargs) -> bool:
 
 
 def update_user_password(user_id: str, new_password_hash: str) -> bool:
-    """Update user password."""
+    """Update user password and clear must_change_password flag."""
     return update(
-        "users", {"password_hash": new_password_hash}, {"id": f"eq.{user_id}"}
+        "users",
+        {"password_hash": new_password_hash, "must_change_password": False},
+        {"id": f"eq.{user_id}"},
     )
 
 

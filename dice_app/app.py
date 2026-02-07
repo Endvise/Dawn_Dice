@@ -103,6 +103,18 @@ def main():
 
     # Main content area
     if auth.is_authenticated():
+        # Check if user must change password - redirect to change password page
+        if st.session_state.get(SESSION_KEYS.get("user_id")):
+            user_id = st.session_state.get(SESSION_KEYS.get("user_id"))
+            role = auth.get_current_role()
+            if role == "user":
+                user = db.get_user_by_id(str(user_id))
+                if user and user.get("must_change_password"):
+                    page = "🔐 Change Password"
+                    st.warning(
+                        "⚠️ Your password has been reset. Please change your password."
+                    )
+
         # Page routing
         if page == "🏠 Home":
             import views.home

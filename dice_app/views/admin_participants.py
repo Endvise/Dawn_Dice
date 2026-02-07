@@ -868,10 +868,13 @@ def show():
                                 {
                                     "password_hash": new_hash,
                                     "plaintext_password": new_pw,
+                                    "must_change_password": True,  # 비밀번호 변경 강제
                                 },
                                 {"id": f"eq.{user_id}"},
                             )
-                            st.success(f"Reset! {new_pw}")
+                            st.success(
+                                f"Reset! {new_pw} - User must change password on next login"
+                            )
                             st.rerun()
 
             if any(u.get("plaintext_password") for u in filtered_users):

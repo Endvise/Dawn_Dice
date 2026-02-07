@@ -799,10 +799,6 @@ def show():
 
             st.markdown(f"**Users ({len(filtered_users)})**")
 
-            show_all = st.checkbox(
-                "Show All Passwords", value=False, key="show_all_passwords"
-            )
-
             for u in filtered_users[:50]:
                 user_id = str(u.get("id", ""))
 
@@ -829,29 +825,13 @@ def show():
                         )
 
                         if u.get("plaintext_password"):
-                            # Show/Hide password toggle
-                            show_pw = st.checkbox(
-                                "👁️ Show Password",
-                                value=False,
-                                key=f"show_pw_{user_id}",
+                            st.text_input(
+                                "Password",
+                                value=u.get("plaintext_password", ""),
+                                type="default",
+                                disabled=True,
+                                key=f"pw_{user_id}",
                             )
-
-                            if show_all or show_pw:
-                                st.text_input(
-                                    "Password",
-                                    value=u.get("plaintext_password", ""),
-                                    type="default",
-                                    disabled=True,
-                                    key=f"pw_display_{user_id}",
-                                )
-                            else:
-                                st.text_input(
-                                    "Password",
-                                    value="••••••••••••",
-                                    type="password",
-                                    disabled=True,
-                                    key=f"pw_display_{user_id}",
-                                )
                         else:
                             st.warning("No password stored")
 
@@ -875,29 +855,8 @@ def show():
                                 f"Reset! {new_pw} - User must change password on next login"
                             )
                             st.rerun()
-
-            if any(u.get("plaintext_password") for u in filtered_users):
-                all_creds = [
-                    {
-                        "Nickname": u.get("nickname", ""),
-                        "ID": u.get("commander_number", ""),
-                        "Password": u.get("plaintext_password", ""),
-                        "Server": u.get("server", ""),
-                        "Alliance": u.get("alliance", ""),
-                    }
-                    for u in filtered_users
-                    if u.get("plaintext_password")
-                ]
-                if all_creds:
-                    st.download_button(
-                        "Download All",
-                        pd.DataFrame(all_creds).to_csv(index=False),
-                        "creds.csv",
-                        "text/csv",
-                        width="stretch",
-                    )
-        else:
-            st.info("No user accounts yet.")
+            else:
+                st.info("No user accounts yet.")
 
     st.markdown("---")
 

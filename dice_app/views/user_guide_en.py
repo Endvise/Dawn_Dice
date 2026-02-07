@@ -15,57 +15,55 @@ def show():
     st.title("📖 How to Use")
     st.markdown("---")
 
-    # Table of Contents
+    # Table of Contents (matching sidebar menu)
     st.markdown("""
     ## Table of Contents
-    
-    1. [Registration](#registration)
-    2. [Login](#login)
-    3. [Making a Reservation](#making-a-reservation)
-    4. [My Reservations](#my-reservations)
-    5. [Changing Password](#changing-password)
-    6. [Important Notes](#important-notes)
+
+    01. [Home](#01-home)
+    02. [Make Reservation](#02-make-reservation)
+    03. [My Reservations](#03-my-reservations)
+    04. [ 이용 방법](#04---)
+    05. [How to Use](#05-how-to-use)
+    06. [Change Password](#06-change-password)
     """)
 
     st.markdown("---")
 
-    # 1. Registration
-    st.markdown("## 1. Registration")
+    # 01. Home
+    st.markdown("## 01. Home")
     st.markdown("""
-    1. Click **Sign Up** button on the login page
-    2. Enter the following information:
-       - **Commander ID**: 10-digit number (e.g., 1234567890)
-       - **Nickname**: Your desired nickname
-       - **Server**: Server number (e.g., #095)
-       - **Alliance**: Alliance name (optional)
-       - **Password**: Minimum 8 characters
-    3. Click **Sign Up** button
+    **Menu Location:** Sidebar first
+
+    **Description:**
+    - Main page of the system
+    - Shows current active session information
+    - Displays reservation status (Open/Closed/Waitlist)
+    - Check reservation open/close times
+
+    **How to Use:**
+    1. Select "01. 🏠 Home" from sidebar
+    2. Check current session information
+    3. Check reservation status
     """)
 
     st.markdown("---")
 
-    # 2. Login
-    st.markdown("## 2. Login")
+    # 02. Make Reservation
+    st.markdown("## 02. Make Reservation")
     st.markdown("""
-    1. Enter your Commander ID (or username) and password
-    2. Click **Login** button
+    **Menu Location:** Sidebar second
 
-    ### Forgot Your Password?
-    - **Contact the admin** to request a password reset
-    - The admin will provide your new password
-    """)
+    **Description:**
+    - Page to make a reservation
+    - Only available during admin-set reservation times
 
-    st.markdown("---")
+    **How to Use:**
+    1. Select "02. 📝 Make Reservation" from sidebar
+    2. Enter Commander ID (10 digits)
+    3. Check nickname, server, alliance info
+    4. Submit reservation
 
-    # 3. Making a Reservation
-    st.markdown("## 3. Making a Reservation")
-    st.markdown("""
-    1. Click **Go to Reservation** button when reservations are open
-    2. Review your information
-    3. Click **Submit** button
-    4. Your reservation is confirmed!
-
-    ### Reservation Times
+    **Reservation Times:**
     - Check for **Reservations Open** status at the top
     - Opening time: Set by admin
     - Closing time: Set time OR when capacity is reached
@@ -73,30 +71,81 @@ def show():
 
     st.markdown("---")
 
-    # 4. My Reservations
-    st.markdown("## 4. My Reservations")
+    # 03. My Reservations
+    st.markdown("## 03. My Reservations")
     st.markdown("""
-    - Check your reservation status in **My Reservations** menu
-    - View your reservation number (queue position)
-    - If waitlisted, see your waitlist number
+    **Menu Location:** Sidebar third
+
+    **Description:**
+    - Shows reservation status for logged-in user
+    - Check reservation order and status
+
+    **How to Use:**
+    1. Select "03. 📊 My Reservations" from sidebar
+    2. Check your reservation list
+    3. Check reservation order (Queue Position)
+    - Within capacity: "You are #{order} in queue (within capacity)"
+    - Waitlist: "You are #{order} in queue (waitlist #{waitlist#})"
     """)
 
     st.markdown("---")
 
-    # 5. Changing Password
-    st.markdown("## 5. Changing Password")
+    # 04. 이용 방법
+    st.markdown("## 04. 이용 방법")
     st.markdown("""
-    1. Go to **Change Password** menu
-    2. Enter your current password
+    **Menu Location:** Sidebar fourth
+
+    **Description:**
+    - This guide page in Korean
+    - System usage guide in Korean language
+
+    **How to Use:**
+    1. Select "04. 📖 이용 방법" from sidebar
+    2. Read the guide in Korean
+    """)
+
+    st.markdown("---")
+
+    # 05. How to Use
+    st.markdown("## 05. How to Use")
+    st.markdown("""
+    **Menu Location:** Sidebar fifth
+
+    **Description:**
+    - This guide page in English
+    - System usage guide in English language
+
+    **How to Use:**
+    1. Select "05. 📖 How to Use" from sidebar
+    2. Read the guide in English
+    """)
+
+    st.markdown("---")
+
+    # 06. Change Password
+    st.markdown("## 06. Change Password")
+    st.markdown("""
+    **Menu Location:** Sidebar sixth
+
+    **Description:**
+    - Change your password
+
+    **How to Use:**
+    1. Select "06. 🔐 Change Password" from sidebar
+    2. Enter current password
     3. Enter new password (minimum 8 characters)
     4. Confirm new password
     5. Click **Change Password** button
+
+    **Forgot Your Password?**
+    - **Contact the admin** to request a password reset
+    - The admin will provide your new password
     """)
 
     st.markdown("---")
 
-    # 6. Important Notes
-    st.markdown("## 6. Important Notes")
+    # Important Notes
+    st.markdown("## ⚠️ Important Notes")
     st.markdown("""
     ### First-Come, First-Served
     - Reservations are confirmed in order of application

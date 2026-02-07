@@ -18,6 +18,7 @@
 | v12 | 2026-02-07 | Sisyphus | **비밀번호 변경 강제화** - Reset Password 후 첫 로그인 시 비밀번호 변경 페이지로 리다이렉트 |
 | v13 | 2026-02-07 | Sisyphus | **한국어 이용 안내 공지 추가** - 홈페이지 상단에 고정된 이용 방법 공지 (Supabase 직접 INSERT) |
 | v14 | 2026-02-07 | Sisyphus | **사용 가이드 페이지 추가** - 관리자/사용자용 가이드 페이지 생성 (한국어/영어), 메뉴 번호 부여 |
+| v15 | 2026-02-07 | Sisyphus | **영어 UI 변경** - 참가자→회원, Participant→Member, LF 줄바꿈 설정, Streamlit Cloud 캐시 문제 해결 |
 
 ---
 
@@ -1499,6 +1500,57 @@ if selected_session_id == "Select Session...":
 | 작업 | 계정 |
 |------|------|
 | 커밋/푸시 | `bland7754` |
+
+---
+
+## v15 (2026-02-07) - 영어 UI 변경 및 Streamlit Cloud 문제 해결
+
+### 변경 내용
+1. GitHub Actions 워크플로우 파일 삭제 (`streamlit-app-action@v1` 지원 중단)
+2. UI 라벨 영어 변경: "참가자" → "회원", "Participant" → "Member"
+3. `.gitattributes`로 LF 줄바꿈 강제 설정 (Windows/Linux 호환 문제 해결)
+4. `app.py` - `admin_page` 체크를 "Member Management"로 수정
+5. Streamlit Cloud 캐시 문제 해결을 위한 강제 rebuild
+
+### 수정된 파일
+```
+.github/workflows/streamlit-deploy.yml  # 삭제됨
+dice_app/app.py                         # Member Management로 변경
+dice_app/views/home.py                  # Participants → Members
+dice_app/views/reservation.py            # participants → Members
+.gitattributes                          # LF 줄바꿈 강제 추가
+```
+
+### 주요 변경 (영어)
+| 이전 | 이후 |
+|------|------|
+| "09. 👥 회원 관리" | "09. 👥 Member Management" |
+| "12. 📖 사용 가이드" | "12. 📖 User Guide" |
+| "Current Participants" | "Current Members" |
+
+### 커밋 이력
+| 커밋 | 내용 |
+|------|------|
+| `42d433c` | ci: remove unused streamlit-deploy workflow |
+| `d6efbc4` | refactor: change Participants to Members in UI |
+| `8bb3ec0` | chore: force LF line endings for Python files |
+| `dd01a29` | fix: update admin_page check to use Member Management |
+| `5086401` | force rebuild |
+
+### 현재 상태
+- **GitHub**: 모든 변경사항 푸시 완료
+- **Streamlit Cloud**: Redeploy 진행 중
+- **앱 URL**: https://dawndice.streamlit.app
+
+### 문제 해결
+**IndentationError 발생 원인:**
+1. Windows (CRLF) vs Linux (LF) 줄바꿈 문자 충돌
+2. `admin_page` 체크에서 "Participant Management" 사용하지만 메뉴는 "Member Management"
+
+**해결책:**
+- `.gitattributes`에 `*.py text eol=lf` 추가
+- `admin_page` 목록을 실제 메뉴명과 일치시킴
+- GitHub Actions 워크플로우 파일 삭제 (불필요한 파일로 간주)
 
 ---
 

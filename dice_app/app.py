@@ -175,7 +175,7 @@ def main():
             import views.user_guide_en
 
             views.user_guide_en.show()
-        elif page == "06. 🔐 Change Password" or page == "13. 🔐 Change Password":
+        elif page in ("06. 🔐 Change Password", "13. 🔐 Change Password"):
             import views.change_password
 
             views.change_password.show()

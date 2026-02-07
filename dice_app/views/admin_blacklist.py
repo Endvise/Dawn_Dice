@@ -420,7 +420,7 @@ def show():
             ):
                 entries = st.session_state.get("pending_blacklist_entries", [])
 
-                if entries:
+                if entries and isinstance(entries, list):
                     # Show preview
                     preview_df = pd.DataFrame(entries[:10])
                     st.dataframe(preview_df, use_container_width=True)

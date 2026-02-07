@@ -847,12 +847,17 @@ def show():
                                     key=f"pw_{user_id}",
                                 )
                             with col_toggle:
-                                if st.button(
+                                show_pw = st.checkbox(
                                     "Show" if not show_pw else "Hide",
+                                    value=show_pw,
                                     key=f"toggle_{user_id}",
+                                )
+                                if show_pw != (
+                                    st.session_state.get(f"show_pw_{user_id}", False)
+                                    if not show_all
+                                    else True
                                 ):
-                                    st.session_state[f"show_pw_{user_id}"] = not show_pw
-                                    st.rerun()
+                                    st.session_state[f"show_pw_{user_id}"] = show_pw
                         else:
                             st.warning("No password stored")
 

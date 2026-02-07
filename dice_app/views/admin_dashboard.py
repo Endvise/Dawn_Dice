@@ -28,18 +28,34 @@ def get_dashboard_stats() -> dict:
     active_users = len(db.list_users(is_active=True))
     admin_users = len(db.list_admins(role="admin"))
 
+    # Get current active session
+    active_session = db.get_active_session()
+    current_session_name = (
+        active_session.get("session_name") if active_session else None
+    )
+
     # Reservation statistics (no status field in Supabase schema)
     all_reservations = db.list_reservations()
-    approved = len(
-        all_reservations
-    )  # All reservations are "approved" in simplified schema
+
+    # Filter reservations by current session
+    session_reservations = (
+        [r for r in all_reservations if r.get("event_name") == current_session_name]
+        if current_session_name
+        else []
+    )
+
+    approved = len(session_reservations)
 
     # Blacklist statistics (is_active removed from params)
     blacklist = db.list_blacklist()
 
-    # Participant statistics
-    participants = db.list_participants()
-    total_participants = len(participants)  # 전체 참여자 수
+    # Participant statistics - 현재 활성화된 세션 기준
+    if current_session_name:
+        participants = db.list_participants(current_session_name)
+    else:
+        participants = []
+
+    total_participants = len(participants)
     completed = len([p for p in participants if p.get("completed")])
     confirmed = len([p for p in participants if p.get("confirmed")])
 
@@ -47,13 +63,15 @@ def get_dashboard_stats() -> dict:
     announcements = db.list_announcements(is_active=True)
     pinned = len([a for a in announcements if a.get("is_pinned")])
 
-    # Total participants (existing + approved reservations)
-    total_participants = completed + approved
+    # Overall statistics
+    max_participants = (
+        active_session.get("max_participants", 180) if active_session else 180
+    )
 
     return {
         "users": {"total": total_users, "active": active_users, "admin": admin_users},
         "reservations": {
-            "total": len(all_reservations),
+            "total": len(session_reservations),
             "pending": 0,
             "approved": approved,
             "rejected": 0,
@@ -62,15 +80,16 @@ def get_dashboard_stats() -> dict:
         },
         "blacklist": {"total": len(blacklist)},
         "participants": {
-            "total": len(participants),
+            "total": total_participants,
             "completed": completed,
             "confirmed": confirmed,
         },
         "announcements": {"total": len(announcements), "pinned": pinned},
         "overall": {
+            "current_session": current_session_name,
             "total_participants": total_participants,
-            "max_participants": db.MAX_PARTICIPANTS,
-            "is_full": total_participants >= db.MAX_PARTICIPANTS,
+            "max_participants": max_participants,
+            "is_full": total_participants >= max_participants,
             "waitlist_count": 0,
         },
     }

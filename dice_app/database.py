@@ -305,16 +305,28 @@ def create_reservation(
     server: str,
     notes: Optional[str] = None,
     reserved_by: Optional[str] = None,
+    event_name: Optional[str] = None,
 ) -> int:
     """Create reservation."""
     blacklisted = check_blacklist(commander_number)
 
-    reservations = fetch_all("reservations")
-    approved_reservations_count = len(reservations)
+    # Get current active session's event_name if not provided
+    if not event_name:
+        active_session = get_active_session()
+        if active_session:
+            event_name = active_session.get("session_name")
 
-    # Check waitlist - count all participants, not just completed
+    # Get current session participants and reservations for counting
     all_participants = fetch_all("participants")
-    participants_count = len(all_participants)
+    participants_count = len(
+        [p for p in all_participants if p.get("event_name") == event_name]
+    )
+
+    # Get reservations for current session only
+    session_reservations = [
+        r for r in fetch_all("reservations") if r.get("event_name") == event_name
+    ]
+    approved_reservations_count = len(session_reservations)
 
     total_count = participants_count + approved_reservations_count
     is_waitlisted = total_count >= MAX_PARTICIPANTS
@@ -330,6 +342,7 @@ def create_reservation(
         "notes": notes,
         "reserved_by": reserved_by,
         "reserved_at": datetime.now().isoformat(),
+        "event_name": event_name,  # 현재 세션명 저장
     }
 
     return insert("reservations", data)
@@ -342,12 +355,15 @@ def get_reservation_by_id(reservation_id: str) -> Optional[Dict[str, Any]]:
 
 def list_reservations(
     user_id: Optional[str] = None,
+    event_name: Optional[str] = None,
     limit: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """List reservations."""
     params = {}
     if user_id:
         params["user_id"] = f"eq.{user_id}"
+    if event_name:
+        params["event_name"] = f"eq.{event_name}"
     results = fetch_all("reservations", params)
     if limit:
         results = results[:limit]

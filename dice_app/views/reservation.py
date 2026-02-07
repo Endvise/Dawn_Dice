@@ -68,12 +68,23 @@ def show():
             help="Pre-filled from your registration info",
         )
 
-        # Current participant count
-        participants = db.list_participants()
-        participants_count = len([p for p in participants if p.get("completed")])
+        # Current participant count - 현재 세션 기준
+        active_session = db.get_active_session()
+        current_event_name = (
+            active_session.get("session_name") if active_session else None
+        )
 
-        # Approved reservations count
-        all_reservations = db.list_reservations()
+        participants = (
+            db.list_participants(current_event_name) if current_event_name else []
+        )
+        participants_count = len(participants)
+
+        # Approved reservations count - 현재 세션 기준
+        all_reservations = (
+            db.list_reservations(event_name=current_event_name)
+            if current_event_name
+            else []
+        )
         approved_count = len(all_reservations)
 
         total_count = participants_count + approved_count

@@ -13,21 +13,30 @@ from typing import Optional, Dict, Any
 
 def get_reservation_status() -> Dict[str, Any]:
     """Returns reservation status."""
-    # Get participants and reservations
-    participants = db.list_participants()
-    reservations = db.list_reservations()
+    # Get current active session first
+    active_session = db.get_active_session()
+    current_session_name = (
+        active_session.get("session_name") if active_session else None
+    )
 
-    # Existing participants count (completed)
-    participants_count = len([p for p in participants if p.get("completed")])
+    # Get participants and reservations filtered by current session
+    participants = (
+        db.list_participants(current_session_name) if current_session_name else []
+    )
+    reservations = (
+        db.list_reservations(event_name=current_session_name)
+        if current_session_name
+        else []
+    )
+
+    # Existing participants count
+    participants_count = len(participants)
 
     # Approved reservations count
     approved_count = len(reservations)
 
-    # Total participants
+    # Total participants for current session
     total_count = participants_count + approved_count
-
-    # Get current active session
-    active_session = db.get_active_session()
 
     if active_session:
         session_id = active_session.get("id")
@@ -38,8 +47,8 @@ def get_reservation_status() -> Dict[str, Any]:
         reservation_close_time = active_session.get("reservation_close_time")
         session_date = active_session.get("session_date")
 
-        # Calculate session counts
-        session_participants = len([p for p in participants if p.get("completed")])
+        # Calculate session counts (already filtered by session)
+        session_participants = len(participants)
         session_reservations = len(reservations)
         session_total = session_participants + session_reservations
 

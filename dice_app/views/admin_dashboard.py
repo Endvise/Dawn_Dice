@@ -35,16 +35,13 @@ def get_dashboard_stats() -> dict:
     )
 
     # Reservation statistics (no status field in Supabase schema)
-    all_reservations = db.list_reservations()
-
-    # Filter reservations by current session
-    session_reservations = (
-        [r for r in all_reservations if r.get("event_name") == current_session_name]
+    all_reservations = (
+        db.list_reservations(event_name=current_session_name)
         if current_session_name
         else []
     )
 
-    approved = len(session_reservations)
+    approved = len(all_reservations)
 
     # Blacklist statistics (is_active removed from params)
     blacklist = db.list_blacklist()
@@ -71,7 +68,7 @@ def get_dashboard_stats() -> dict:
     return {
         "users": {"total": total_users, "active": active_users, "admin": admin_users},
         "reservations": {
-            "total": len(session_reservations),
+            "total": len(all_reservations),
             "pending": 0,
             "approved": approved,
             "rejected": 0,

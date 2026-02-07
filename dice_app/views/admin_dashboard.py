@@ -39,6 +39,7 @@ def get_dashboard_stats() -> dict:
 
     # Participant statistics
     participants = db.list_participants()
+    total_participants = len(participants)  # 전체 참여자 수
     completed = len([p for p in participants if p.get("completed")])
     confirmed = len([p for p in participants if p.get("confirmed")])
 

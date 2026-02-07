@@ -309,11 +309,12 @@ def create_reservation(
     """Create reservation."""
     blacklisted = check_blacklist(commander_number)
 
-    participants = fetch_all("participants", {"completed": "eq.1"})
-    participants_count = len(participants)
-
     reservations = fetch_all("reservations")
     approved_reservations_count = len(reservations)
+
+    # Check waitlist - count all participants, not just completed
+    all_participants = fetch_all("participants")
+    participants_count = len(all_participants)
 
     total_count = participants_count + approved_reservations_count
     is_waitlisted = total_count >= MAX_PARTICIPANTS

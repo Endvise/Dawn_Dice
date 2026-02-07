@@ -1621,4 +1621,74 @@ ALTER TABLE public.participants RENAME TO members;
 
 ---
 
+## v18 (2026-02-07) - 들여쓰기 오류 수정
+
+### 변경 내용
+1. `admin_members.py:908` 줄에서 IndentationError 수정
+2. `_show_edit_form` 함수 내부 `st.markdown` 들여쓰기 문제 해결
+
+### 원인
+ast_grep_replace로 코드 변경 시 함수 내부 들여쓰기가 잘못 적용됨
+
+---
+
+## v19 (2026-02-07) - 비밀번호 토글 기능 (롤백)
+
+### 변경 내용
+1. Users 탭에서 비밀번호 Show/Hide 토글 기능 추가
+2. `st.button` → `st.checkbox`로 변경하여 상태 유지 시도
+3. `show_all_passwords` 체크박스로 전체 비밀번호 일괄 표시 기능 추가
+
+### 원인/결과
+- `plaintext_password` 필드가 NULL인 기존 사용자가 많아 기능 의미 없음
+- 이후 롤백 결정
+
+---
+
+## v20 (2026-02-07) - 구문 오류 수정
+
+### 변경 내용
+1. `admin_user_guide.py:1177` 줄에서 SyntaxError 수정
+2. `st.info()` 문자열 `\"\"\"` 닫기 태그 누락 문제 해결
+
+### 수정 전
+```python
+st.info("💡 **Excel 대량 등록 팁:**
+    - 사령관번호는 10자리 숫자
+    ...
+```
+
+### 수정 후
+```python
+st.info("""💡 **Excel 대량 등록 팁:**
+    - 사령관번호는 10자리 숫자
+    ...
+""")
+```
+
+---
+
+## v21 (2026-02-07) - 참여자 수 카운트 수정
+
+### 변경 내용
+1. `database.py:312`에서 `completed=True` 조건 제거
+2. 전체 참여자 수를 세도록 변경
+3. 대시보드 Participants 수가 0으로 표시되는 문제 해결
+
+### 수정 전
+```python
+participants = fetch_all("participants", {"completed": "eq.1"})
+```
+
+### 수정 후
+```python
+all_participants = fetch_all("participants")
+participants_count = len(all_participants)
+```
+
+### 원인
+대부분의 참여자가 `completed=False` 상태라서 카운트되지 않음
+
+---
+
 *DEVELOPMENT_LOG.md - DaWn Dice Party 개발 이력*

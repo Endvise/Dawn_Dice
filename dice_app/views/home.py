@@ -255,7 +255,7 @@ def show():
 
     with col1:
         st.metric(
-            "Current Participants",
+            "Current Members",
             f"{status['overall_total']} / {status['overall_max']}",
         )
 

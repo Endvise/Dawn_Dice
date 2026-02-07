@@ -50,10 +50,10 @@ def main():
                         "06. 🎯 Session Check-in",
                         "07. 🤖 Session Manager AI",
                         "08. 📋 Reservation Management",
-                        "09. 👥 회원 관리",
+                        "09. 👥 Member Management",
                         "10. 🚫 Blacklist Management",
                         "11. 📢 Announcement Management",
-                        "12. 📖 사용 가이드",
+                        "12. 📖 User Guide",
                         "13. 🔐 Change Password",
                     ],
                 )
@@ -151,7 +151,7 @@ def main():
             import views.admin_reservations
 
             views.admin_reservations.show()
-        elif page == "09. 👥 Participant Management":
+        elif page == "09. 👥 Member Management":
             import views.admin_participants
 
             views.admin_participants.show()
@@ -163,7 +163,7 @@ def main():
             import views.admin_announcements
 
             views.admin_announcements.show()
-        elif page == "12. 📖 사용 가이드":
+        elif page == "12. 📖 User Guide":
             import views.admin_user_guide
 
             views.admin_user_guide.show()

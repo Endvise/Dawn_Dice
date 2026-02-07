@@ -78,7 +78,7 @@ def show():
 
         total_count = participants_count + approved_count
 
-        st.info(f"Current participants: {total_count} / {db.MAX_PARTICIPANTS}")
+        st.info(f"Current Members: {total_count} / {db.MAX_PARTICIPANTS}")
 
         if total_count >= db.MAX_PARTICIPANTS:
             st.warning("Capacity full. Reservations will be added to waiting list.")

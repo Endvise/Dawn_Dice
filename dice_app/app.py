@@ -42,18 +42,19 @@ def main():
                 page = st.radio(
                     "Select Admin Page",
                     [
-                        "🏠 Home",
-                        "📝 Make Reservation",
-                        "📊 My Reservations",
-                        "📊 Dashboard",
-                        "🎲 Session Management",
-                        "🎯 Session Check-in",
-                        "🤖 Session Manager AI",
-                        "📋 Reservation Management",
-                        "👥 Participant Management",
-                        "🚫 Blacklist Management",
-                        "📢 Announcement Management",
-                        "🔐 Change Password",
+                        "01. 🏠 Home",
+                        "02. 📝 Make Reservation",
+                        "03. 📊 My Reservations",
+                        "04. 📊 Dashboard",
+                        "05. 🎲 Session Management",
+                        "06. 🎯 Session Check-in",
+                        "07. 🤖 Session Manager AI",
+                        "08. 📋 Reservation Management",
+                        "09. 👥 Participant Management",
+                        "10. 🚫 Blacklist Management",
+                        "11. 📢 Announcement Management",
+                        "12. 📖 사용 가이드",
+                        "13. 🔐 Change Password",
                     ],
                 )
             else:
@@ -61,24 +62,26 @@ def main():
                 page = st.radio(
                     "Select Page",
                     [
-                        "🏠 Home",
-                        "📝 Make Reservation",
-                        "📊 My Reservations",
-                        "🔐 Change Password",
+                        "01. 🏠 Home",
+                        "02. 📝 Make Reservation",
+                        "03. 📊 My Reservations",
+                        "04. 📖 이용 방법",
+                        "05. 📖 How to Use",
+                        "06. 🔐 Change Password",
                     ],
                 )
 
             # Admin page variable (compatibility)
             admin_page = None
             if auth.is_admin() and page in [
-                "📊 Dashboard",
-                "🎲 Session Management",
-                "🎯 Session Check-in",
-                "🤖 Session Manager AI",
-                "📋 Reservation Management",
-                "👥 Participant Management",
-                "🚫 Blacklist Management",
-                "📢 Announcement Management",
+                "04. 📊 Dashboard",
+                "05. 🎲 Session Management",
+                "06. 🎯 Session Check-in",
+                "07. 🤖 Session Manager AI",
+                "08. 📋 Reservation Management",
+                "09. 👥 Participant Management",
+                "10. 🚫 Blacklist Management",
+                "11. 📢 Announcement Management",
             ]:
                 admin_page = page
 
@@ -104,8 +107,8 @@ def main():
     # Main content area
     if auth.is_authenticated():
         # Check if user must change password - redirect to change password page
-        if st.session_state.get(SESSION_KEYS.get("user_id")):
-            user_id = st.session_state.get(SESSION_KEYS.get("user_id"))
+        user_id = st.session_state.get(auth.SESSION_KEYS.get("user_id"))
+        if user_id:
             role = auth.get_current_role()
             if role == "user":
                 user = db.get_user_by_id(str(user_id))
@@ -116,54 +119,66 @@ def main():
                     )
 
         # Page routing
-        if page == "🏠 Home":
+        if page == "01. 🏠 Home":
             import views.home
 
             views.home.show()
-        elif page == "📝 Make Reservation":
+        elif page == "02. 📝 Make Reservation":
             import views.reservation
 
             views.reservation.show()
-        elif page == "📊 My Reservations":
+        elif page == "03. 📊 My Reservations":
             import views.my_reservations
 
             views.my_reservations.show()
-        elif page == "🔐 Change Password":
-            import views.change_password
-
-            views.change_password.show()
-        elif page == "📊 Dashboard":
+        elif page == "04. 📊 Dashboard":
             import views.admin_dashboard
 
             views.admin_dashboard.show()
-        elif page == "🎲 Session Management":
+        elif page == "05. 🎲 Session Management":
             import views.event_sessions
 
             views.event_sessions.show()
-        elif page == "🎯 Session Check-in":
+        elif page == "06. 🎯 Session Check-in":
             import views.session_checkin
 
             views.session_checkin.show()
-        elif page == "🤖 Session Manager AI":
+        elif page == "07. 🤖 Session Manager AI":
             import views.session_manager
 
             views.session_manager.show()
-        elif page == "📋 Reservation Management":
+        elif page == "08. 📋 Reservation Management":
             import views.admin_reservations
 
             views.admin_reservations.show()
-        elif page == "👥 Participant Management":
+        elif page == "09. 👥 Participant Management":
             import views.admin_participants
 
             views.admin_participants.show()
-        elif page == "🚫 Blacklist Management":
+        elif page == "10. 🚫 Blacklist Management":
             import views.admin_blacklist
 
             views.admin_blacklist.show()
-        elif page == "📢 Announcement Management":
+        elif page == "11. 📢 Announcement Management":
             import views.admin_announcements
 
             views.admin_announcements.show()
+        elif page == "12. 📖 사용 가이드":
+            import views.admin_user_guide
+
+            views.admin_user_guide.show()
+        elif page == "04. 📖 이용 방법":
+            import views.user_guide_ko
+
+            views.user_guide_ko.show()
+        elif page == "05. 📖 How to Use":
+            import views.user_guide_en
+
+            views.user_guide_en.show()
+        elif page == "06. 🔐 Change Password" or page == "13. 🔐 Change Password":
+            import views.change_password
+
+            views.change_password.show()
 
         # Master-only page
         if auth.is_master():

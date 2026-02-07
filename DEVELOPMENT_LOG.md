@@ -1691,4 +1691,149 @@ participants_count = len(all_participants)
 
 ---
 
+## v22 (2026-02-07) - 세션별 데이터 필터링 통합 수정
+
+### 변경 내용
+1. **database.py - reservations 테이블에 event_name 추가**
+   - `create_reservation()` 함수에 `event_name` 파라미터 추가
+   - 현재 활성화된 세션의 `session_name`을 자동으로 저장
+   - `list_reservations()` 함수에 `event_name` 필터 추가
+
+2. **admin_dashboard.py - 현재 세션 기준 필터링**
+   - `get_dashboard_stats()` 함수에서 현재 세션 기준으로 participants/reservations 필터링
+   - `db.list_participants(current_session_name)` 사용
+   - `db.list_reservations(event_name=current_session_name)` 사용
+
+3. **home.py - 홈 페이지 통계 통합**
+   - `get_reservation_status()` 함수에서 현재 세션 기준으로 카운트
+   - `completed=True` 조건 제거 - 전체 참여자 수 세도록 변경
+
+4. **reservation.py - 예약 페이지 인원 수 계산**
+   - 현재 세션 기준으로 participants/reservations 카운트
+   - 활성화된 세션이 없으면 0으로 표시
+
+### 수정된 파일
+| 파일 | 수정 내용 |
+|------|----------|
+| `dice_app/database.py` | `create_reservation()`, `list_reservations()` |
+| `dice_app/views/admin_dashboard.py` | `get_dashboard_stats()` |
+| `dice_app/views/home.py` | `get_reservation_status()` |
+| `dice_app/views/reservation.py` | 인원 수 계산 로직 |
+
+### 핵심 수정 코드
+**database.py - create_reservation():**
+```python
+# 현재 활성화된 세션의 event_name 가져오기
+if not event_name:
+    active_session = get_active_session()
+    if active_session:
+        event_name = active_session.get("session_name")
+
+# 현재 세션 기준 카운트
+all_participants = fetch_all("participants")
+participants_count = len(
+    [p for p in all_participants if p.get("event_name") == event_name]
+)
+session_reservations = [
+    r for r in fetch_all("reservations") if r.get("event_name") == event_name
+]
+```
+
+### Supabase에 필요한 변경
+**기존 reservations 테이블에 event_name 컬럼 추가:**
+```sql
+ALTER TABLE public.reservations ADD COLUMN IF NOT EXISTS event_name TEXT;
+```
+
+### 원인
+테이블 간 관계가 세션 기준으로 통일되지 않아 모든 세션의 데이터가 혼합되어 표시됨
+
+---
+
+## v23 (2026-02-07) - 대시보드 세션 필터 추가
+
+### 변경 내용
+1. 대시보드 `get_dashboard_stats()` 함수에서 현재 활성화된 세션 기준으로 모든 통계 필터링
+2. `participants` 카운트에서 `completed=True` 조건 제거
+3. `reservations` 카운트에서 `event_name` 필터 적용
+4. `max_participants`를 하드코딩된 180 대신 세션 설정값 사용
+
+### 수정 전
+```python
+participants = db.list_participants()
+total_participants = len(participants)  # 전체 참여자
+approved = len(db.list_reservations())  # 모든 예약
+```
+
+### 수정 후
+```python
+if current_session_name:
+    participants = db.list_participants(current_session_name)
+    all_reservations = db.list_reservations(event_name=current_session_name)
+else:
+    participants = []
+    all_reservations = []
+
+approved = len(all_reservations)
+```
+
+### 원인
+대시보드에서 현재 활성화된 세션(세션3)의 참여자 166명이 0명으로 표시되는 문제
+
+---
+
+## v24 (2026-02-07) - 세션 기반 예약 시스템 통합
+
+### 변경 내용
+1. ** reservations 테이블에 event_name 자동 저장**
+   - 예약 시 현재 활성화된 세션의 `session_name` 자동 저장
+   - 기존 데이터는 NULL 상태로 유지
+
+2. **모든 조회 함수에 세션 필터 적용**
+   - `list_participants(event_name)` - 특정 세션의 참여자만 조회
+   - `list_reservations(event_name)` - 특정 세션의 예약만 조회
+   - `get_participant_count()` - 현재 세션 기준 카운트
+
+3. **홈페이지 통계 통합**
+   - 현재 세션 기준으로 participants + reservations 카운트
+   - 전체(모든 세션) vs 현재 세션 통계 분리
+
+### 핵심 개념
+| 테이블 | 세션 연결 |
+|--------|----------|
+| `participants` | `event_name` → `event_sessions.session_name` |
+| `reservations` | `event_name` → `event_sessions.session_name` |
+| `users` | 세션 독립적 (회원 정보) |
+
+### 데이터베이스 관계도
+```
+┌─────────────────────────────────────────────────────────────┐
+│ users 테이블 (회원)                                          │
+│ - id, commander_number, nickname, password_hash, etc.       │
+└─────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────┐
+│ participants 테이블 (세션 참여자)                             │
+│ - id, igg_id, event_name ←→ event_sessions.session_name    │
+│ - completed, re_confirmed, alliance_entry, dice_purchased  │
+└─────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────┐
+│ reservations 테이블 (예약 신청)                              │
+│ - id, user_id, commander_number, event_name                │
+└─────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────┐
+│ event_sessions 테이블 (세션)                                 │
+│ - id, session_name, session_number, max_participants      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 주의사항
+- 기존 `reservations` 데이터는 `event_name`이 NULL
+- 새 예약은 자동으로 현재 세션의 `event_name` 저장
+- 세션 전환 시 데이터 필터링 정상 작동
+
+---
+
 *DEVELOPMENT_LOG.md - DaWn Dice Party 개발 이력*

@@ -905,7 +905,7 @@ def show():
 
 def _show_edit_form(participant: dict, is_master: bool):
     """Show participant edit form."""
-        st.markdown("### Edit Member")
+    st.markdown("### Edit Member")
 
     col1, col2 = st.columns(2)
 

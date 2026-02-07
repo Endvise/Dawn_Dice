@@ -42,19 +42,19 @@ def main():
                 page = st.radio(
                     "Select Admin Page",
                     [
-                        "01. 🏠 Home",
-                        "02. 📝 Make Reservation",
-                        "03. 📊 My Reservations",
-                        "04. 📊 Dashboard",
-                        "05. 🎲 Session Management",
-                        "06. 🎯 Session Check-in",
-                        "07. 🤖 Session Manager AI",
-                        "08. 📋 Reservation Management",
-                        "09. 👥 Member Management",
-                        "10. 🚫 Blacklist Management",
-                        "11. 📢 Announcement Management",
-                        "12. 📖 User Guide",
-                        "13. 🔐 Change Password",
+                        "01_ 🏠 Home",
+                        "02_ 📝 Make Reservation",
+                        "03_ 📊 My Reservations",
+                        "04_ 📊 Dashboard",
+                        "05_ 🎲 Session Management",
+                        "06_ 🎯 Session Check-in",
+                        "07_ 🤖 Session Manager AI",
+                        "08_ 📋 Reservation Management",
+                        "09_ 👥 Member Management",
+                        "10_ 🚫 Blacklist Management",
+                        "11_ 📢 Announcement Management",
+                        "12_ 📖 User Guide",
+                        "13_ 🔐 Change Password",
                     ],
                 )
             else:
@@ -62,26 +62,26 @@ def main():
                 page = st.radio(
                     "Select Page",
                     [
-                        "01. 🏠 Home",
-                        "02. 📝 Make Reservation",
-                        "03. 📊 My Reservations",
-                        "04. 📖 이용 방법",
-                        "05. 📖 How to Use",
-                        "06. 🔐 Change Password",
+                        "01_ 🏠 Home",
+                        "02_ 📝 Make Reservation",
+                        "03_ 📊 My Reservations",
+                        "04_ 📖 이용 방법",
+                        "05_ 📖 How to Use",
+                        "06_ 🔐 Change Password",
                     ],
                 )
 
             # Admin page variable (compatibility)
             admin_page = None
             if auth.is_admin() and page in [
-                "04. 📊 Dashboard",
-                "05. 🎲 Session Management",
-                "06. 🎯 Session Check-in",
-                "07. 🤖 Session Manager AI",
-                "08. 📋 Reservation Management",
-                "09. 👥 Member Management",
-                "10. 🚫 Blacklist Management",
-                "11. 📢 Announcement Management",
+                "04_ 📊 Dashboard",
+                "05_ 🎲 Session Management",
+                "06_ 🎯 Session Check-in",
+                "07_ 🤖 Session Manager AI",
+                "08_ 📋 Reservation Management",
+                "09_ 👥 Member Management",
+                "10_ 🚫 Blacklist Management",
+                "11_ 📢 Announcement Management",
             ]:
                 admin_page = page
 
@@ -119,63 +119,63 @@ def main():
                     )
 
         # Page routing
-        if page == "01. 🏠 Home":
+        if page == "01_ 🏠 Home":
             import views.home
 
             views.home.show()
-        elif page == "02. 📝 Make Reservation":
+        elif page == "02_ 📝 Make Reservation":
             import views.reservation
 
             views.reservation.show()
-        elif page == "03. 📊 My Reservations":
+        elif page == "03_ 📊 My Reservations":
             import views.my_reservations
 
             views.my_reservations.show()
-        elif page == "04. 📊 Dashboard":
+        elif page == "04_ 📊 Dashboard":
             import views.admin_dashboard
 
             views.admin_dashboard.show()
-        elif page == "05. 🎲 Session Management":
+        elif page == "05_ 🎲 Session Management":
             import views.event_sessions
 
             views.event_sessions.show()
-        elif page == "06. 🎯 Session Check-in":
+        elif page == "06_ 🎯 Session Check-in":
             import views.session_checkin
 
             views.session_checkin.show()
-        elif page == "07. 🤖 Session Manager AI":
+        elif page == "07_ 🤖 Session Manager AI":
             import views.session_manager
 
             views.session_manager.show()
-        elif page == "08. 📋 Reservation Management":
+        elif page == "08_ 📋 Reservation Management":
             import views.admin_reservations
 
             views.admin_reservations.show()
-        elif page == "09. 👥 Member Management":
+        elif page == "09_ 👥 Member Management":
             import views.admin_participants
 
             views.admin_participants.show()
-        elif page == "10. 🚫 Blacklist Management":
+        elif page == "10_ 🚫 Blacklist Management":
             import views.admin_blacklist
 
             views.admin_blacklist.show()
-        elif page == "11. 📢 Announcement Management":
+        elif page == "11_ 📢 Announcement Management":
             import views.admin_announcements
 
             views.admin_announcements.show()
-        elif page == "12. 📖 User Guide":
+        elif page == "12_ 📖 User Guide":
             import views.admin_user_guide
 
             views.admin_user_guide.show()
-        elif page == "04. 📖 이용 방법":
+        elif page == "04_ 📖 이용 방법":
             import views.user_guide_ko
 
             views.user_guide_ko.show()
-        elif page == "05. 📖 How to Use":
+        elif page == "05_ 📖 How to Use":
             import views.user_guide_en
 
             views.user_guide_en.show()
-        elif page in ("06. 🔐 Change Password", "13. 🔐 Change Password"):
+        elif page in ("06_ 🔐 Change Password", "13_ 🔐 Change Password"):
             import views.change_password
 
             views.change_password.show()

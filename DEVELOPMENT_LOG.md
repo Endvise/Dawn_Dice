@@ -19,6 +19,7 @@
 | v13 | 2026-02-07 | Sisyphus | **한국어 이용 안내 공지 추가** - 홈페이지 상단에 고정된 이용 방법 공지 (Supabase 직접 INSERT) |
 | v14 | 2026-02-07 | Sisyphus | **사용 가이드 페이지 추가** - 관리자/사용자용 가이드 페이지 생성 (한국어/영어), 메뉴 번호 부여 |
 | v15 | 2026-02-07 | Sisyphus | **영어 UI 변경** - 참가자→회원, Participant→Member, LF 줄바꿈 설정, Streamlit Cloud 캐시 문제 해결 |
+| v16 | 2026-02-07 | Sisyphus | **메뉴 번호 형식 변경** - 마침표→언더스코어 (01. → 01_) |
 
 ---
 
@@ -1551,6 +1552,45 @@ dice_app/views/reservation.py            # participants → Members
 - `.gitattributes`에 `*.py text eol=lf` 추가
 - `admin_page` 목록을 실제 메뉴명과 일치시킴
 - GitHub Actions 워크플로우 파일 삭제 (불필요한 파일로 간주)
+
+---
+
+## v16 (2026-02-07) - 메뉴 번호 형식 변경
+
+### 변경 내용
+1. `app.py`의 모든 메뉴 번호 형식 변경
+2. `01.` → `01_` (마침표 → 언더스코어)
+
+### 수정된 메뉴 형식
+**관리자 메뉴:**
+```
+01_ 🏠 Home
+02_ 📝 Make Reservation
+03_ 📊 My Reservations
+04_ 📊 Dashboard
+05_ 🎲 Session Management
+06_ 🎯 Session Check-in
+07_ 🤖 Session Manager AI
+08_ 📋 Reservation Management
+09_ 👥 Member Management
+10_ 🚫 Blacklist Management
+11_ 📢 Announcement Management
+12_ 📖 User Guide
+13_ 🔐 Change Password
+```
+
+**일반 사용자 메뉴:**
+```
+01_ 🏠 Home
+02_ 📝 Make Reservation
+03_ 📊 My Reservations
+04_ 📖 이용 방법
+05_ 📖 How to Use
+06_ 🔐 Change Password
+```
+
+### 원인
+Streamlit Cloud에서 마침표(`.`)가 포함된 메뉴명이 렌더링되지 않는 문제 해결
 
 ---
 

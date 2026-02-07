@@ -36,7 +36,7 @@ def show():
     # Get current active session
     active_session = db.get_active_session()
 
-    st.title("Participants Management")
+    st.title("Members Management")
     st.markdown("---")
 
     # Session info
@@ -84,12 +84,12 @@ def show():
 
     # ===== TABS: Clear 5-tab structure =====
     tab1, tab2, tab3, tab4, tab5 = st.tabs(
-        ["👥 Participants", "➕ Add", "📋 Reservations", "📥 Import Excel", "👤 Users"]
+        ["👥 Members", "➕ Add", "📋 Reservations", "📥 Import Excel", "👤 Users"]
     )
 
-    # ========== Tab 1: Participants List ==========
+    # ========== Tab 1: Members List ==========
     with tab1:
-        st.markdown("### 👥 Participants")
+        st.markdown("### 👥 Members")
 
         col1, col2, col3 = st.columns(3)
 
@@ -167,15 +167,15 @@ def show():
         else:
             st.info("No participants found.")
 
-    # ========== Tab 2: Add Participants ==========
+    # ========== Tab 2: Add Members ==========
     with tab2:
-        st.markdown("### ➕ Add Participants")
+        st.markdown("### ➕ Add Members")
 
         if not active_session:
             st.warning("No active session. Create a session first.")
         else:
-            # Nested tabs: New Participant / From Previous Session
-            tab2_1, tab2_2 = st.tabs(["✨ New Participant", "📥 From Previous Session"])
+            # Nested tabs: New Member / From Previous Session
+            tab2_1, tab2_2 = st.tabs(["✨ New Member", "📥 From Previous Session"])
 
             # ----- Tab 2-1: Add New Participant -----
             with tab2_1:
@@ -198,7 +198,7 @@ def show():
 
                     st.markdown("---")
                     if st.form_submit_button(
-                        "➕ Add Participant", type="primary", width="stretch"
+                        "➕ Add Member", type="primary", width="stretch"
                     ):
                         if not new_commander_id or not new_nickname or not new_server:
                             st.error("Please fill in all required fields (*)")
@@ -249,7 +249,7 @@ def show():
                                 "notes": f"Added by admin - {user.get('username', 'admin')}",
                             }
                             db.add_participant(participant_data)
-                            st.success("Participant added!")
+                            st.success("Member added!")
                             st.rerun()
 
             # ----- Tab 2-2: From Previous Session -----
@@ -905,7 +905,7 @@ def show():
 
 def _show_edit_form(participant: dict, is_master: bool):
     """Show participant edit form."""
-    st.markdown("### Edit Participant")
+        st.markdown("### Edit Member")
 
     col1, col2 = st.columns(2)
 

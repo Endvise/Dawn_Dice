@@ -805,9 +805,6 @@ def show():
 
             for u in filtered_users[:50]:
                 user_id = str(u.get("id", ""))
-                show_pw = st.session_state.get(f"show_pw_{user_id}", False)
-                if show_all:
-                    show_pw = True
 
                 with st.expander(
                     f"{u.get('nickname', 'Unknown')} - {u.get('commander_number', 'N/A')}"
@@ -832,32 +829,29 @@ def show():
                         )
 
                         if u.get("plaintext_password"):
-                            col_pw, col_toggle = st.columns([3, 1])
-                            with col_pw:
-                                pw_value = (
-                                    u.get("plaintext_password", "")
-                                    if show_pw
-                                    else "••••••••••••"
-                                )
+                            # Show/Hide password toggle
+                            show_pw = st.checkbox(
+                                "👁️ Show Password",
+                                value=False,
+                                key=f"show_pw_{user_id}",
+                            )
+
+                            if show_all or show_pw:
                                 st.text_input(
                                     "Password",
-                                    value=pw_value,
-                                    type="default" if show_pw else "password",
+                                    value=u.get("plaintext_password", ""),
+                                    type="default",
                                     disabled=True,
-                                    key=f"pw_{user_id}",
+                                    key=f"pw_display_{user_id}",
                                 )
-                            with col_toggle:
-                                show_pw = st.checkbox(
-                                    "Show" if not show_pw else "Hide",
-                                    value=show_pw,
-                                    key=f"toggle_{user_id}",
+                            else:
+                                st.text_input(
+                                    "Password",
+                                    value="••••••••••••",
+                                    type="password",
+                                    disabled=True,
+                                    key=f"pw_display_{user_id}",
                                 )
-                                if show_pw != (
-                                    st.session_state.get(f"show_pw_{user_id}", False)
-                                    if not show_all
-                                    else True
-                                ):
-                                    st.session_state[f"show_pw_{user_id}"] = show_pw
                         else:
                             st.warning("No password stored")
 
